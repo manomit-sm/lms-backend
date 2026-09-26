@@ -1,3 +1,33 @@
 spring:
   application:
     name: lms-backend
+
+  threads:
+    virtual:
+      enabled: true
+
+  datasource:
+    url: ${LMS_DB_URL:jdbc:postgresql://localhost:5432/lms}
+    username: ${LMS_DB_USERNAME:lms}
+    password: ${LMS_DB_PASSWORD:lms}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Schema is owned by Liquibase only (public + one schema per tenant)
+      ddl-auto: none
+
+  liquibase:
+    # Migrations are run per tenant schema by TenantMigrationRunner, not by Boot's auto-configuration
+    enabled: false
+
+  modulith:
+    events:
+      # Outstanding events are resubmitted per tenant by a dedicated job
+      republish-outstanding-events-on-restart: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
