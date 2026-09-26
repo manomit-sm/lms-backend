@@ -2,56 +2,100 @@
 
 Foundational decisions for lms-backend and why we made them. Treat this as an ADR log: each decision below can be revisited, but only by adding a new dated entry that supersedes it, not by silently drifting.
 
+All decisions below: **accepted 2026-09-27**.
+
 ## Decision 1: Modular monolith, not microservices
 
-**We will build a single deployable Spring Boot application, internally organized into strict modules** (`identity`, `tenant`, `employee`, `leave`, `approval`, `notification`, `common`), rather than separate services per module.
+**We build a single deployable Spring Boot application, internally organized into strict Spring Modulith modules** (see `02-modules.md`), rather than separate services per module.
 
 **Why:**
-- The domain (leave apply/approve, balances, employee records) is small enough that network-boundary overhead between "services" would be pure cost with no benefit — most operations need employee + leave + approval data in one transaction.
-- A modular monolith gives us transactional consistency for free (e.g. "create leave request + write ledger entry + notify approver" is one DB transaction, not a saga).
-- We keep the *option* to extract a module into its own service later, because module boundaries are enforced in code (see `02-modules.md`) — extraction becomes a deployment change, not a rewrite.
-- Team size at this stage doesn't justify the operational overhead of running/monitoring/deploying N services.
+- **Transactional consistency.** Approving a leave request changes the request status, moves days from *pending* to *used* in the balance, advances the approval workflow, writes the audit log and creates a notification. In one application that is one transaction; across services it would need sagas and compensations.
+- **Small, tightly coupled domain.** Almost every screen (calendar, dashboard, reports) reads employees, leave requests, holidays and balances together.
+- **Low load.** Even large tenants generate little traffic; independent scaling buys nothing.
+- **Reports** join across modules — trivial in one database, painful across service databases.
+- **Cost and team size.** One pipeline, one database, one deploy.
 
-**Trade-off accepted:** we give up independent scaling and independent deployment of modules. Revisit if one module (most likely `notification` or `reporting`) develops genuinely different scaling characteristics.
+We keep the *option* to extract a module later: boundaries are enforced in code by Spring Modulith, and side effects flow through domain events, so extraction becomes a deployment change rather than a rewrite.
 
-## Decision 2: Multi-tenant SaaS, schema-per-tenant
+**Trade-off accepted:** no independent scaling or deployment per module. Revisit if a module (most likely `notification` or `reporting` exports) develops genuinely different scaling characteristics.
 
-**Each customer organization ("tenant") gets its own PostgreSQL schema** inside a shared database cluster, plus a small set of shared "public" schema tables for cross-tenant control-plane data (tenant registry, plan/billing metadata, global admin users).
+## Decision 2: Multi-tenant SaaS
 
-**Why not shared-schema-with-tenant_id-column:**
-- Strong isolation: a bug in a `WHERE` clause can leak another tenant's rows in the shared-schema model. In schema-per-tenant, the failure mode is "wrong schema selected" (caught by the checklist in `04-tenancy-and-security.md`), not "missing a filter in one of hundreds of queries."
-- Per-tenant backup/restore and per-tenant data export (a real customer ask for HR data) are trivial with schema-per-tenant, painful with a shared table.
-- Liquibase can run tenant migrations schema-by-schema, which also gives us a natural per-tenant migration status table (see `02-modules.md`).
+**The codebase is multi-tenant from day one.** The same build supports these deployment models:
+
+| Model | Use |
+|---|---|
+| **Shared SaaS** — many tenants, one environment | Default offering |
+| **Dedicated instance** — same image, one tenant, separate AWS account/region | Premium: isolation, data residency |
+| **Client-hosted** | Only if a specific deal justifies it; not designed for, but not made impossible |
+
+**Why:**
+- Leave management is a low price-per-employee product. A dedicated environment per small customer costs more to run than the customer pays.
+- Running multi-tenant code with a single tenant is free; retrofitting multi-tenancy into single-tenant code is a rewrite (security, every query, jobs, caches, migrations).
+
+**Consequences — to keep dedicated/client-hosted possible:**
+- One codebase, one image, no customer-specific branches; per-tenant differences are data and configuration.
+- Everything deployment-specific (identity provider issuer, storage bucket, email sender, database) is configuration.
+- Cloud integrations sit behind interfaces (`FileStorage`, `EmailSender`, `IdentityProviderClient`).
+- Infrastructure as code from the first deployment.
+
+## Decision 3: Schema-per-tenant on PostgreSQL
+
+**Each tenant gets its own PostgreSQL schema** (`t_<slug>`) in a shared database, served by one connection pool. The `public` schema holds only control-plane data (tenant registry, tenant identity-provider mapping, job locks). Business tables have **no `tenant_id` column** — the schema is the boundary.
+
+**Why not a shared schema with a `tenant_id` column:**
+- A single missing `WHERE tenant_id = ?` leaks data. With schema-per-tenant the only failure mode is "wrong schema selected", which is handled in one place and covered by dedicated isolation tests.
+- Per-tenant export, restore and offboarding (drop schema) are trivial.
 
 **Why not database-per-tenant:**
-- Connection pool and operational overhead scale linearly with tenant count; schema-per-tenant lets one connection pool serve all tenants (see the schema-switching mechanism in `04-tenancy-and-security.md`).
+- Connection pools and operational overhead grow linearly with tenant count.
 
-**Trade-off accepted:** schema-per-tenant caps us at a few thousand tenants per DB cluster before we'd need sharding across clusters. That's an acceptable ceiling for the foreseeable customer base; revisit in `07-open-questions.md` if we approach it.
+**How the schema is selected:** the tenant is taken **only** from the validated access token's `tenant_id` claim, looked up in the tenant registry and mapped to a schema. It is never taken from a header, path, query parameter or request body, and the schema name never appears in the token.
 
-## Decision 3: AWS Cognito for authentication
+**Trade-off accepted:** comfortable up to hundreds or low thousands of tenants per database; migration time grows with tenant count. Beyond that we would shard tenants across databases.
 
-**We use a single Cognito User Pool (per environment) for all tenants' users**, not one pool per tenant, distinguishing tenants via a custom JWT claim.
+## Decision 4: AWS Cognito for authentication, our database for authorization
+
+**Authentication** (login, MFA, password reset, corporate SSO) is delegated to **one Cognito user pool per environment** shared by all tenants. **Authorization** (roles, permissions, data scope) lives in each tenant's schema.
+
+**Why Cognito:**
+- Managed MFA, password policies, token lifecycle and breach protection — we don't own credential code.
+- Per-tenant corporate SSO (SAML/OIDC) is configuration, not a project.
+- We are on AWS already.
+
+**How the tenant gets into the token:**
+- Custom attribute `custom:tenant_id`, **read-only for every app client** (otherwise users could change their own tenant).
+- A Pre Token Generation Lambda copies it into the **access token** as a `tenant_id` claim; for SSO users it is derived from the identity provider they signed in through.
+- Platform administrators (our staff) use a separate user pool.
+
+**Why authorization stays in our database, not in Cognito groups/attributes:**
+- Roles and permissions are tenant-configurable at runtime and depend on the org chart (a manager sees their reporting line).
+- Group claims only change when a new token is issued; permission changes in our database apply almost immediately.
+
+**Portability:** the backend is a plain OAuth2 resource server. Switching identity provider (Keycloak, Microsoft Entra, a self-hosted authorization server) is a configuration change.
+
+**Trade-offs accepted:**
+- Password hashes can't be exported from Cognito; leaving Cognito would force password resets for non-SSO users.
+- One pool with email sign-in means an email address exists once platform-wide, so a person belongs to one tenant.
+
+## Decision 5: Ledger-based leave balances
+
+**Every balance change is an immutable row in an append-only ledger** (`leave_balance_transaction`: allocation, accrual, carry-forward, expiry, pending hold/release, consume, reversal, HR adjustment). A snapshot row per employee × leave type × leave period (`leave_balance`: allocated, carried forward, adjusted, used, pending, and a generated *available* column) is updated **in the same transaction** as the ledger entry.
 
 **Why:**
-- Managed MFA, password policies, and token refresh without us owning that code.
-- Custom attributes (`custom:tenant_id`, `custom:role`) plus a Pre-Token Generation Lambda trigger let us inject exactly the claims our request pipeline needs (see `04-tenancy-and-security.md`) without maintaining a second identity store.
-- One pool per environment (not per tenant) keeps Cognito configuration (app clients, triggers, domain) manageable — tenant separation happens via claims and schema routing, not via infrastructure count.
+- **Auditability:** "why does this employee have 12.5 days?" is answered by the ledger.
+- **Correctness:** balance bugs are almost always races on concurrent submit/approve. The snapshot row is locked (`SELECT … FOR UPDATE`) while checking and changing it, so two requests cannot both spend the same days.
+- **Cheap reads:** dashboards and the apply form read one row, not a `SUM`.
+- **Corrections** are new ledger rows, never edits.
 
-**Trade-off accepted:** cross-tenant user migration (an employee moving between tenant orgs) requires an explicit admin action to update the `custom:tenant_id` attribute; it's not automatic. Acceptable — this is a rare operation.
+**Trade-off accepted:** two writes per change, and the snapshot must only ever be changed through the balance module's API.
 
-## Decision 4: Ledger-based leave balances, not a mutable balance column
+## Decision 6: Liquibase owns every schema
 
-**Leave balance is never stored as a single mutable number.** It is the sum of an append-only `leave_ledger` table (accruals, carry-forwards, approved-leave debits, manual adjustments), optionally materialized into a snapshot for read performance.
+Every schema — `public` and each tenant schema — is managed exclusively by **Liquibase YAML changelogs** in this repository. Hibernate never creates or validates schema (`ddl-auto: none`). No manual DDL in any environment.
 
-**Why:**
-- Auditability: HR and finance need to answer "why does this employee have 12.5 days" months later. A mutable column can't answer that; a ledger can be replayed.
-- Correctness: balance bugs in leave systems are almost always races or double-decrements on a mutable column under concurrent approval. An append-only ledger with a unique constraint per (request, entry type) makes double-application structurally impossible.
-- Cheap correction: adjustments are new rows, never edits, so there's no need for soft-delete/undo logic on balance mutations.
+- Boot's Liquibase auto-run is disabled; a tenant migration runner applies the public changelog, then the tenant changelog to each tenant schema (each schema has its own Liquibase history table).
+- New tenants are provisioned by creating the schema and applying the full tenant changelog.
+- In production, migrations run as a separate step before the application rolls out.
 
-**Trade-off accepted:** reading "current balance" is a `SUM` (or a maintained materialized snapshot) instead of a single-row read. See `03-database.md` and `05-leave-flows.md` for the concrete schema and how/when the snapshot is refreshed.
-
-## Decision 5: Liquibase for all schema management
-
-Every schema — public and each tenant schema — is managed exclusively through Liquibase changelogs checked into this repo. No manual DDL against any environment. See `02-modules.md` for changelog layout.
-
-**Why:** repeatable, reviewable, rollback-capable migrations across an unbounded number of tenant schemas is only tractable if it's fully automated and declarative.
+**Why:** repeatable, reviewable migrations across an unbounded number of tenant schemas are only tractable if they are fully automated and declarative.
