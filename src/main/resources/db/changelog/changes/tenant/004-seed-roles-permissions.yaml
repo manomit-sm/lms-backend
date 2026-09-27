@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-seed-roles-permissions
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/tenant/004-seed-roles-permissions.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

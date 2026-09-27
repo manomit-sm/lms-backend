@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-event-publication
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/public/003-event-publication.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

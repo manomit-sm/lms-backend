@@ -34,6 +34,7 @@
 		<shedlock.version>7.10.1</shedlock.version>
 		<aws-sdk.version>2.55.6</aws-sdk.version>
 		<archunit.version>1.5.1</archunit.version>
+		<lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
 	</properties>
 	<dependencies>
 		<!-- Web & API -->
@@ -130,6 +131,13 @@
 			<version>${mapstruct.version}</version>
 		</dependency>
 
+		<!-- Boilerplate -->
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+
 		<!-- Ops -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -211,6 +219,15 @@
 				<configuration>
 					<annotationProcessorPaths>
 						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</path>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok-mapstruct-binding</artifactId>
+							<version>${lombok-mapstruct-binding.version}</version>
+						</path>
+						<path>
 							<groupId>org.springframework.boot</groupId>
 							<artifactId>spring-boot-configuration-processor</artifactId>
 						</path>
@@ -231,6 +248,10 @@
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
 					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
 						<exclude>
 							<groupId>org.springframework.boot</groupId>
 							<artifactId>spring-boot-configuration-processor</artifactId>

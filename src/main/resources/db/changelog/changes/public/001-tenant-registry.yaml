@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-tenant-registry
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/public/001-tenant-registry.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

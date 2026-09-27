@@ -1,0 +1,16 @@
+# Local development: tokens come from the built-in local issuer (POST /local/tokens/tenant and
+# /local/tokens/platform) instead of Cognito. The issuer URIs below are only the expected "iss"
+# values of those self-signed tokens - nothing is fetched from them.
+lms:
+  identity:
+    # In-memory identity provider: subjects are logged and stored on app_user.idp_subject
+    provider: fake
+  security:
+    local-issuer:
+      enabled: true
+    tenant:
+      issuer-uri: http://localhost/lms-local/tenant
+      client-ids: lms-local-web
+    platform:
+      issuer-uri: http://localhost/lms-local/platform
+      client-ids: lms-local-platform

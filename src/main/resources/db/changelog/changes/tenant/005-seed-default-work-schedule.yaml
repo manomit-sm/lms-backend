@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-seed-default-work-schedule
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/tenant/005-seed-default-work-schedule.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

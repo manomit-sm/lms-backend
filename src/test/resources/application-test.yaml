@@ -1,0 +1,15 @@
+# Tests use the same self-signed local issuer as local development; the database comes from
+# Testcontainers (@ServiceConnection), so DB_* variables are not needed.
+lms:
+  identity:
+    # In-memory identity provider: subjects are logged and stored on app_user.idp_subject
+    provider: fake
+  security:
+    local-issuer:
+      enabled: true
+    tenant:
+      issuer-uri: http://localhost/lms-local/tenant
+      client-ids: lms-local-web
+    platform:
+      issuer-uri: http://localhost/lms-local/platform
+      client-ids: lms-local-platform

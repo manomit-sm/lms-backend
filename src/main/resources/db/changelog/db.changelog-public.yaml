@@ -1,0 +1,9 @@
+databaseChangeLog:
+  # Control plane only (public schema): tenant registry and cross-tenant infrastructure tables.
+  # Applied once per deployment by TenantMigrationService, before any tenant schema is migrated.
+  - include:
+      file: db/changelog/changes/public/001-tenant-registry.yaml
+  - include:
+      file: db/changelog/changes/public/002-shedlock.yaml
+  - include:
+      file: db/changelog/changes/public/003-event-publication.yaml
