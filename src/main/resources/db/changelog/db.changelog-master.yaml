@@ -1,0 +1,13 @@
+databaseChangeLog:
+  # Applied to every tenant schema (tenant_<key>) by TenantMigrationService, with search_path
+  # already pointed at that schema - SQL files under sql/tenant are therefore never schema-qualified.
+  - include:
+      file: db/changelog/changes/tenant/001-event-publication.yaml
+  - include:
+      file: db/changelog/changes/tenant/002-organization.yaml
+  - include:
+      file: db/changelog/changes/tenant/003-identity.yaml
+  - include:
+      file: db/changelog/changes/tenant/004-seed-roles-permissions.yaml
+  - include:
+      file: db/changelog/changes/tenant/005-seed-default-work-schedule.yaml

@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-shedlock
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/public/002-shedlock.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

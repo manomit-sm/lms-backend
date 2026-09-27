@@ -7,9 +7,9 @@ spring:
       enabled: true
 
   datasource:
-    url: ${LMS_DB_URL:jdbc:postgresql://localhost:5432/lms}
-    username: ${LMS_DB_USERNAME:lms}
-    password: ${LMS_DB_PASSWORD:lms}
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
 
   jpa:
     open-in-view: false
@@ -18,13 +18,43 @@ spring:
       ddl-auto: none
 
   liquibase:
-    # Migrations are run per tenant schema by TenantMigrationRunner, not by Boot's auto-configuration
+    # Migrations are run per schema (public + every tenant) by TenantMigrationService, not by Boot's auto-configuration
     enabled: false
+
+  data:
+    web:
+      pageable:
+        max-page-size: 100
 
   modulith:
     events:
       # Outstanding events are resubmitted per tenant by a dedicated job
       republish-outstanding-events-on-restart: false
+
+lms:
+  platform:
+    migrations:
+      # Migrate public + all tenant schemas before the web server starts. Turned off in deployed
+      # environments, where migrations run as a separate step before the rollout.
+      run-on-startup: true
+  identity:
+    # User lifecycle in the tenant user pool (invite / disable / enable)
+    provider: cognito
+    cognito:
+      user-pool-id: ${LMS_COGNITO_TENANT_USER_POOL_ID}
+      region: ${AWS_REGION}
+  security:
+    # Cognito user pools (issuer = https://cognito-idp.<region>.amazonaws.com/<userPoolId>)
+    tenant:
+      issuer-uri: ${LMS_TENANT_ISSUER_URI}
+      client-ids: ${LMS_TENANT_CLIENT_IDS}
+    platform:
+      issuer-uri: ${LMS_PLATFORM_ISSUER_URI}
+      client-ids: ${LMS_PLATFORM_CLIENT_IDS}
+
+logging:
+  pattern:
+    level: "%5p [tenant=%X{tenant:-}]"
 
 management:
   endpoints:

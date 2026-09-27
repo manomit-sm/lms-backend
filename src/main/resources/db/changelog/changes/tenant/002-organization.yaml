@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-organization
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/tenant/002-organization.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

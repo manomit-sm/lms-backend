@@ -2,84 +2,105 @@
 
 ## Modules
 
-| Module | Owns | Depends on (via `api` packages only) |
+Every direct sub-package of `com.bsolz.lms` is a Spring Modulith application module. Each module's rules live in its `package-info.java` (`@ApplicationModule`), and its public API is its `api` sub-package (`@NamedInterface("api")`).
+
+| Module | Owns | May depend on |
 |---|---|---|
-| `identity` | Mapping Cognito subjects to internal users, role assignment | `tenant` |
-| `tenant` | Tenant registry (public schema), tenant lifecycle (provision/suspend/offboard), per-tenant migration status | — (foundation module) |
-| `employee` | Employee records, org structure (manager chain), employment dates | `tenant`, `identity` |
-| `leave` | Leave types, leave ledger, balance computation, leave requests | `employee`, `tenant` |
-| `approval` | Approval workflow definitions, approval steps/decisions on a leave request | `leave`, `employee` |
-| `notification` | Email/SMS dispatch for leave events (submitted/approved/rejected/reminder) | `leave`, `approval`, `employee` (read-only, via events) |
-| `common` | Cross-cutting: `TenantContext`, error types, base entities, audit fields, pagination DTOs | none — everything may depend on `common` |
+| `shared` | Shared kernel: base entity, error handling, web helpers, multi-tenancy (`tenancy`) and security (`security`) infrastructure | nothing (open module — every module may use it) |
+| `organization` | Departments, designations, locations, work schedules, employees, reporting hierarchy | `shared` |
+| `settings` | Tenant-level system settings (leave year start, timezone, date format, branding) | `shared` |
+| `identity` | Users mapped to Cognito subjects, roles, permissions, identity-provider user lifecycle, `/auth/me` | `shared`, `organization` |
+| `platform` | Tenant registry (public schema), provisioning and lifecycle, tenant migrations, platform admin API | `shared`, `identity` |
+| `leavepolicy` | Leave types, leave policies and applicability rules, leave periods | `shared`, `organization`, `settings` |
+| `holiday` | Holidays and their department/location applicability | `shared`, `organization` |
+| `balance` | Leave balances and the balance ledger; allocation, accrual, carry-forward and expiry | `shared`, `organization`, `leavepolicy`, `settings` |
+| `approval` | Approval workflow definitions, runtime instances and tasks, delegation, escalation | `shared`, `organization`, `identity` |
+| `leave` | Leave requests, per-day breakdown, attachments, status history, leave status machine | `shared`, `organization`, `leavepolicy`, `balance`, `holiday`, `approval`, `settings` |
+| `calendar` | Read-only calendar views: leaves, holidays, team availability | `shared`, `organization`, `leavepolicy`, `leave`, `holiday` |
+| `notification` | In-app notifications (SSE) driven by domain events; email later | `shared`, `identity`, `organization`, `leave`, `approval`, `balance` |
+| `reporting` | Dashboard statistics, reports, asynchronous exports | `shared`, `organization`, `leavepolicy`, `holiday`, `balance`, `leave`, `approval` |
+| `audit` | Activity log and recent-activity feed, populated from domain events | `shared`, `identity`, `organization`, `settings`, `leavepolicy`, `holiday`, `balance`, `approval`, `leave` |
 
-Rules (enforced by Spring Modulith's module verification, not just convention):
-
-- Each row above is one of Spring Modulith's *application modules* — a direct subpackage of the base package `com.bsolz.lms`. Modulith derives the module list from the package structure itself; there is no separate registry to keep in sync.
-- A module may only reference another module's `api` subpackage (or classes sitting directly in that module's root package, which Modulith treats as its named interface). Anything under `<module>.internal` is invisible to other modules — Modulith's `ApplicationModules.of(LmsApplication.class).verify()` fails the build if any module reaches into another module's `internal` package. This test lives under `src/test/java` and must run in CI on every PR.
-- `notification` never calls into other modules' services synchronously — it only reacts to domain events (e.g. `LeaveRequestApprovedEvent`) published via Spring's `ApplicationEventPublisher`, so a notification failure can never block a leave transaction. Modulith's event publication registry (`spring-modulith-events-*`, not yet added — see `07-open-questions.md`) is the candidate for making that delivery durable across restarts.
-- No module may depend on `leave.internal` or `approval.internal` from a controller in another module — if two modules need the same read, add a method to the owning module's `api` service interface.
-
-## Package layout
+"May depend on" means that module's `api` package only (except `shared`). The graph is acyclic:
 
 ```
-com.bsolz.lms
-├── common
-│   ├── tenant/            # TenantContext (ThreadLocal), TenantSchemaResolver interface
-│   ├── error/             # exception hierarchy, @ControllerAdvice
-│   └── audit/             # base entity with created_at/created_by/updated_at/updated_by
-├── tenant
-│   ├── api/               # TenantService interface, TenantDto
-│   ├── internal/          # TenantEntity, TenantRepository, TenantLifecycleService impl
-│   └── web/               # TenantAdminController (control-plane, super-admin only)
-├── identity
-│   ├── api/
-│   ├── internal/          # CognitoClaimsMapper, UserEntity, UserRepository
-│   └── web/
-├── employee
-│   ├── api/
-│   ├── internal/
-│   └── web/
-├── leave
-│   ├── api/                # LeaveBalanceService, LeaveRequestService interfaces
-│   ├── internal/           # LeaveLedgerEntity, LeaveRequestEntity, ledger append logic
-│   └── web/
-├── approval
-│   ├── api/
-│   ├── internal/
-│   └── web/
-└── notification
-    ├── api/
-    ├── internal/           # listeners on domain events
-    └── web/                # (none typically — internal/async only)
+organization, settings                 ← foundations
+identity → organization                platform → identity
+leavepolicy → organization, settings   holiday → organization
+balance → organization, leavepolicy, settings
+approval → organization, identity
+leave → organization, leavepolicy, balance, holiday, approval, settings
+calendar, notification, reporting, audit  ← read-side consumers
 ```
 
-This is one Maven module (single `pom.xml`, not a multi-module reactor build) — Java's compiler doesn't reject cross-module access on its own, since `internal` is a plain package name, not a language-level visibility boundary. The Spring Modulith verification test above is what actually catches a violation, at test time rather than compile time. Keep classes in `internal` package-private wherever the class doesn't need public visibility for Spring/JPA proxying, as a second line of defense.
+`approval` deliberately does **not** depend on `leave`: `leave` starts an approval and passes in what the workflow needs, then reacts to approval events. That keeps the graph free of cycles.
+
+## Rules
+
+Enforced by `ModularityTests` (`ApplicationModules.of(LmsApplication.class).verify()`), which runs on every build. The Java compiler does not enforce these — the test does.
+
+- A module may only use another module's `api` package, and only modules listed in its `allowedDependencies`. Adding a dependency is a deliberate change to `package-info.java`, reviewed like any other design change.
+- Everything outside `api` is internal to its module.
+- `shared` must never depend on a business module. When it needs module data (e.g. the tenant registry, the current user's permissions), it declares an interface that the owning module implements.
+- Side effects (notifications, audit, email) are domain-event listeners (`@ApplicationModuleListener`), never direct calls, so a notification failure can never roll back a leave transaction. Events are stored in Modulith's event publication registry (JPA) and delivered after commit.
+- Domain events are records placed directly in the publishing module's `api` package (a named interface covers only its own package, not sub-packages), and every event carries the `tenantId`. Listeners bind the tenant from the event (`TenantExecutor`) rather than relying on the executing thread.
+- Enums that appear in a module's `api` types live in `model/enums` and that package is also annotated `@NamedInterface("api")`, so it joins the module's public API.
+- Keep internal classes package-private where Spring/JPA proxying allows, as a second line of defense.
+
+## Package layout inside a module
+
+```
+com.bsolz.lms.leave
+├── package-info.java     # @ApplicationModule: display name, allowed dependencies
+├── api/                  # PUBLIC: facade interfaces, DTOs, domain events (@NamedInterface("api"))
+├── web/                  # REST controllers, request/response DTOs
+├── service/              # application services — transaction boundaries
+├── domain/               # domain logic (calculators, state machine, validators)
+├── entity/               # JPA entities
+├── model/enums/          # enums
+├── repository/           # Spring Data repositories
+└── mapper/               # MapStruct mappers
+```
+
+`shared` is organized by concern instead:
+
+```
+com.bsolz.lms.shared
+├── package-info.java     # @ApplicationModule(type = OPEN)
+├── config/               # clock, JPA auditing, scheduling + ShedLock
+├── entity/               # BaseEntity (UUID id, created/updated at/by, @Version)
+├── exception/            # ErrorCode, ApiException, ProblemDetail handler and writer
+├── web/                  # paging helpers
+├── tenancy/              # tenant context, schema switching, tenant propagation to async work, jobs and events
+└── security/             # filter chains, token validation, tenant filter, current user, permission codes, data scope
+    └── local/            # self-signed token issuer for local development and tests only
+```
+
+This is a single Maven module (one `pom.xml`). `@Modulithic(sharedModules = "shared")` on `LmsApplication` makes `shared` part of every module-scoped integration test.
 
 ## Liquibase layout
 
-Two independent changelog trees, because they migrate on different triggers (public schema on app deploy; a tenant schema on both app deploy *and* new-tenant provisioning):
+Two changelog trees, because they migrate on different triggers: `public` on deploy; a tenant schema on deploy **and** when a new tenant is provisioned. Each changeset is a small YAML file whose only change is an `sqlFile`; the DDL itself lives in a plain `.sql` file.
 
 ```
-db/changelog/
-├── public/
-│   ├── db.changelog-master.xml         # includes below, in order
-│   ├── modules/
-│   │   ├── tenant/                     # tenant registry table, plan metadata
-│   │   └── identity/                   # cross-tenant super-admin users, if any
-│   └── ...
-└── tenant/
-    ├── db.changelog-master.xml         # the template applied to every tenant schema
-    ├── modules/
-    │   ├── employee/
-    │   ├── leave/
-    │   ├── approval/
-    │   └── notification/
-    └── ...
+src/main/resources/db/changelog/
+├── db.changelog-master.yaml            # applied to every tenant schema
+├── db.changelog-public.yaml            # applied to the public schema
+├── changes/
+│   ├── public/NNN-name.yaml            # one changeset each → sqlFile
+│   └── tenant/NNN-name.yaml
+└── sql/
+    ├── public/NNN-name.sql             # the DDL
+    └── tenant/NNN-name.sql
 ```
 
 Conventions:
 
-- One changeset file per logical change, named `NNN-description.xml` (or `.yaml`), included from the module's own `changelog-<module>.xml`, which is in turn included from the tree's master changelog. Ordering is explicit via `<include>`, never relies on filesystem globbing.
-- Every changeset has a globally unique `id` and `author`, and a `<rollback>` for anything that isn't purely additive.
-- The `tenant/` tree is applied to a newly provisioned tenant schema in full (bootstrapping a new tenant), and to all *existing* tenant schemas when the app deploys with new tenant-tree changesets (see the tenant provisioning/migration job in `06-api-jobs-deployment.md`). The `tenant.migration_status` table (public schema) tracks which changeset count each tenant schema is currently at, so a partially-migrated tenant can be resumed rather than silently skipped.
-- No module's changelog references another module's tables directly in a foreign key across module boundaries where avoidable; where a real FK is needed (e.g. `leave_requests.employee_id -> employee.id`), it's declared in the *dependent* module's changelog (`leave`), never edited from `employee`'s.
+- YAML changelogs only, never XML. Ordering is explicit via `include` in the master changelog, never by directory scanning.
+- `sqlFile` paths are relative to the classpath root (`relativeToChangelogFile: false`), with `splitStatements: false` and `stripComments: false`.
+- Tenant SQL is **never schema-qualified**: the migration runner sets `search_path` to the tenant schema before applying it, so the same files build every tenant schema.
+- Every changeset has a unique `id` and `author`; anything that isn't purely additive needs a rollback.
+- Boot's Liquibase auto-run is disabled (`spring.liquibase.enabled: false`). `TenantMigrationService` applies the public changelog, then the tenant changelog to each tenant schema; each schema keeps its own Liquibase history table. A tenant whose migration fails is marked `FAILED` and returns 503 until retried, without blocking other tenants. A public-schema failure stops startup.
+- Hibernate never touches the schema (`spring.jpa.hibernate.ddl-auto: none`).
+- Modulith's `event_publication` table is created by Liquibase in `public` and in every tenant schema, not by Modulith.
+- A foreign key to another module's table (e.g. `leave_request.employee_id → employee.id`) is declared in the *dependent* module's changeset, never by editing the owning module's changesets.
