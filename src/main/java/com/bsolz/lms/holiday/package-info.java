@@ -7,7 +7,8 @@
 	displayName = "Holiday",
 	allowedDependencies = {
 		"shared",
-		"organization :: api"
+		"organization :: api",
+		"settings :: api"
 	}
 )
 package com.bsolz.lms.holiday;

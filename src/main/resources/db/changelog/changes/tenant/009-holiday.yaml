@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 009-holiday
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/tenant/009-holiday.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

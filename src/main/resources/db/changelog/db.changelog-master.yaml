@@ -11,3 +11,13 @@ databaseChangeLog:
       file: db/changelog/changes/tenant/004-seed-roles-permissions.yaml
   - include:
       file: db/changelog/changes/tenant/005-seed-default-work-schedule.yaml
+  - include:
+      file: db/changelog/changes/tenant/006-settings.yaml
+  - include:
+      file: db/changelog/changes/tenant/007-leave-policy.yaml
+  - include:
+      file: db/changelog/changes/tenant/008-seed-leave-types-policies.yaml
+  - include:
+      file: db/changelog/changes/tenant/009-holiday.yaml
+  - include:
+      file: db/changelog/changes/tenant/010-balance.yaml

@@ -3,8 +3,11 @@ package com.bsolz.lms.support;
 import static org.awaitility.Awaitility.await;
 
 import com.bsolz.lms.identity.service.CurrentUserAccessService;
+import com.bsolz.lms.leavepolicy.api.LeavePeriodInfo;
+import com.bsolz.lms.leavepolicy.api.LeavePolicyApi;
 import com.bsolz.lms.organization.model.enums.EmploymentStatus;
 import com.bsolz.lms.organization.model.enums.EmploymentType;
+import com.bsolz.lms.organization.model.enums.Gender;
 import com.bsolz.lms.organization.service.DepartmentService;
 import com.bsolz.lms.organization.service.EmployeeService;
 import com.bsolz.lms.organization.web.dto.DepartmentRequest;
@@ -15,6 +18,7 @@ import com.bsolz.lms.platform.service.TenantProvisioningService;
 import com.bsolz.lms.platform.web.dto.CreateTenantRequest;
 import com.bsolz.lms.shared.security.local.LocalTokenIssuer;
 import com.bsolz.lms.shared.tenancy.TenantContext;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDate;
 import java.util.List;
@@ -42,7 +46,11 @@ public class TestFixtures {
 
 	private final CurrentUserAccessService accessService;
 
+	private final LeavePolicyApi policyApi;
+
 	private final LocalTokenIssuer tokens;
+
+	private final Clock clock;
 
 	private final JdbcTemplate jdbcTemplate;
 
@@ -79,12 +87,40 @@ public class TestFixtures {
 
 	/** Creates an employee; their user is invited asynchronously - see {@link #awaitSubject}. */
 	public EmployeeResponse createEmployee(TestTenant tenant, String firstName, UUID departmentId, UUID managerId) {
+		return createEmployee(tenant, firstName, departmentId, managerId, null, null, LocalDate.of(2024, 1, 1));
+	}
+
+	/**
+	 * Creates an employee with the attributes leave rules look at. Their user is invited and their
+	 * balances allocated asynchronously - see {@link #awaitSubject} and {@link #awaitAllocation}.
+	 */
+	public EmployeeResponse createEmployee(TestTenant tenant, String firstName, UUID departmentId, UUID managerId,
+			Gender gender, UUID locationId, LocalDate joiningDate) {
 		String code = unique("E");
 		String email = (firstName + "." + code + "@example.test").toLowerCase(Locale.ROOT);
 		return TenantContext.call(tenant.info(),
-				() -> employeeService.create(new EmployeeRequest(code, firstName, "Tester", email, null, null,
-						departmentId, null, null, managerId, null, EmploymentType.FULL_TIME, EmploymentStatus.ACTIVE,
-						LocalDate.of(2024, 1, 1), null)));
+				() -> employeeService.create(new EmployeeRequest(code, firstName, "Tester", email, null, gender,
+						departmentId, null, locationId, managerId, null, EmploymentType.FULL_TIME,
+						EmploymentStatus.ACTIVE, joiningDate, null)));
+	}
+
+	/** Waits until the employee's joining allocation has run (it always creates at least one balance). */
+	public void awaitAllocation(TestTenant tenant, UUID employeeId) {
+		await().atMost(Duration.ofSeconds(15)).until(() -> TenantContext.call(tenant.info(),
+				() -> jdbcTemplate.queryForObject("SELECT count(*) FROM leave_balance WHERE employee_id = ?",
+						Integer.class, employeeId)) > 0);
+	}
+
+	public UUID leaveTypeId(TestTenant tenant, String code) {
+		return TenantContext.call(tenant.info(), () -> jdbcTemplate
+				.queryForObject("SELECT id FROM leave_type WHERE code = ?", UUID.class, code));
+	}
+
+	/** The seeded leave period: the current calendar year. */
+	public LeavePeriodInfo currentPeriod(TestTenant tenant) {
+		return TenantContext.call(tenant.info(),
+				() -> policyApi.findPeriodContaining(LocalDate.now(clock.withZone(tenant.info().timezone())))
+						.orElseThrow());
 	}
 
 	public String subjectOf(TestTenant tenant, String email) {

@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 007-leave-policy
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/tenant/007-leave-policy.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

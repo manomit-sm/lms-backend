@@ -12,7 +12,7 @@ Every direct sub-package of `com.bsolz.lms` is a Spring Modulith application mod
 | `identity` | Users mapped to Cognito subjects, roles, permissions, identity-provider user lifecycle, `/auth/me` | `shared`, `organization` |
 | `platform` | Tenant registry (public schema), provisioning and lifecycle, tenant migrations, platform admin API | `shared`, `identity` |
 | `leavepolicy` | Leave types, leave policies and applicability rules, leave periods | `shared`, `organization`, `settings` |
-| `holiday` | Holidays and their department/location applicability | `shared`, `organization` |
+| `holiday` | Holidays and their department/location applicability, CSV import | `shared`, `organization`, `settings` |
 | `balance` | Leave balances and the balance ledger; allocation, accrual, carry-forward and expiry | `shared`, `organization`, `leavepolicy`, `settings` |
 | `approval` | Approval workflow definitions, runtime instances and tasks, delegation, escalation | `shared`, `organization`, `identity` |
 | `leave` | Leave requests, per-day breakdown, attachments, status history, leave status machine | `shared`, `organization`, `leavepolicy`, `balance`, `holiday`, `approval`, `settings` |
@@ -26,7 +26,7 @@ Every direct sub-package of `com.bsolz.lms` is a Spring Modulith application mod
 ```
 organization, settings                 ← foundations
 identity → organization                platform → identity
-leavepolicy → organization, settings   holiday → organization
+leavepolicy → organization, settings   holiday → organization, settings
 balance → organization, leavepolicy, settings
 approval → organization, identity
 leave → organization, leavepolicy, balance, holiday, approval, settings
@@ -46,6 +46,8 @@ Enforced by `ModularityTests` (`ApplicationModules.of(LmsApplication.class).veri
 - Domain events are records placed directly in the publishing module's `api` package (a named interface covers only its own package, not sub-packages), and every event carries the `tenantId`. Listeners bind the tenant from the event (`TenantExecutor`) rather than relying on the executing thread.
 - Enums that appear in a module's `api` types live in `model/enums` and that package is also annotated `@NamedInterface("api")`, so it joins the module's public API.
 - Keep internal classes package-private where Spring/JPA proxying allows, as a second line of defense.
+- Data that belongs to an employee (balances, and later leave requests) is visible to exactly the employees the caller may see: every module checks `organization`'s `EmployeeVisibility` (self / reporting line / everyone) rather than re-deriving the scope.
+- Other modules refer to another module's rows by id only (plain `UUID` columns in JPA, a foreign key in SQL), never through a JPA association across modules.
 
 ## Package layout inside a module
 
@@ -71,6 +73,7 @@ com.bsolz.lms.shared
 ├── entity/               # BaseEntity (UUID id, created/updated at/by, @Version)
 ├── exception/            # ErrorCode, ApiException, ProblemDetail handler and writer
 ├── web/                  # paging helpers
+├── validation/           # shared Bean Validation constraints (e.g. @HalfDays for leave-day amounts)
 ├── tenancy/              # tenant context, schema switching, tenant propagation to async work, jobs and events
 └── security/             # filter chains, token validation, tenant filter, current user, permission codes, data scope
     └── local/            # self-signed token issuer for local development and tests only
