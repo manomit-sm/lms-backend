@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 013-leave
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/tenant/013-leave.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

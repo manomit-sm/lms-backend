@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-btree-gist
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/public/004-btree-gist.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

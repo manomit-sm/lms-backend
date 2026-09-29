@@ -2,6 +2,7 @@ package com.bsolz.lms.organization.service;
 
 import com.bsolz.lms.organization.api.EmployeeSummary;
 import com.bsolz.lms.organization.api.OrganizationApi;
+import com.bsolz.lms.organization.entity.WorkSchedule;
 import com.bsolz.lms.organization.mapper.OrganizationMapper;
 import com.bsolz.lms.organization.model.enums.EmploymentStatus;
 import com.bsolz.lms.organization.model.enums.OrgUnitType;
@@ -9,7 +10,9 @@ import com.bsolz.lms.organization.repository.DepartmentRepository;
 import com.bsolz.lms.organization.repository.DesignationRepository;
 import com.bsolz.lms.organization.repository.EmployeeRepository;
 import com.bsolz.lms.organization.repository.LocationRepository;
+import com.bsolz.lms.organization.repository.WorkScheduleRepository;
 import com.bsolz.lms.shared.entity.BaseEntity;
+import java.time.DayOfWeek;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -36,6 +39,8 @@ class OrganizationApiService implements OrganizationApi {
 	private final LocationRepository locationRepository;
 
 	private final DesignationRepository designationRepository;
+
+	private final WorkScheduleRepository workScheduleRepository;
 
 	private final OrganizationMapper mapper;
 
@@ -69,6 +74,21 @@ class OrganizationApiService implements OrganizationApi {
 	@Override
 	public boolean isInReportingLine(UUID managerId, UUID employeeId) {
 		return employeeRepository.isInReportingLine(managerId, employeeId);
+	}
+
+	@Override
+	public Set<DayOfWeek> findWorkingDays(UUID employeeId) {
+		return employeeRepository.findById(employeeId).map(employee -> {
+			WorkSchedule schedule = employee.getWorkSchedule();
+			if (schedule == null && employee.getLocation() != null) {
+				schedule = employee.getLocation().getWorkSchedule();
+			}
+			if (schedule == null) {
+				schedule = workScheduleRepository.findByDefaultScheduleTrue()
+						.orElseThrow(() -> new IllegalStateException("Tenant has no default work schedule"));
+			}
+			return schedule.getWorkingDays();
+		}).orElse(Set.of());
 	}
 
 	@Override

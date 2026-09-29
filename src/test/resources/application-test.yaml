@@ -4,6 +4,9 @@ lms:
   identity:
     # In-memory identity provider: subjects are logged and stored on app_user.idp_subject
     provider: fake
+  storage:
+    # In-memory storage: presigned URLs point nowhere and every presigned upload counts as done
+    provider: fake
   security:
     local-issuer:
       enabled: true

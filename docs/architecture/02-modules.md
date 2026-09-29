@@ -14,7 +14,7 @@ Every direct sub-package of `com.bsolz.lms` is a Spring Modulith application mod
 | `leavepolicy` | Leave types, leave policies and applicability rules, leave periods | `shared`, `organization`, `settings` |
 | `holiday` | Holidays and their department/location applicability, CSV import | `shared`, `organization`, `settings` |
 | `balance` | Leave balances and the balance ledger; allocation, accrual, carry-forward and expiry | `shared`, `organization`, `leavepolicy`, `settings` |
-| `approval` | Approval workflow definitions, runtime instances and tasks, delegation, escalation | `shared`, `organization`, `identity` |
+| `approval` | Approval workflow definitions, runtime instances and tasks, delegation, escalation | `shared`, `organization`, `identity`, `leavepolicy` |
 | `leave` | Leave requests, per-day breakdown, attachments, status history, leave status machine | `shared`, `organization`, `leavepolicy`, `balance`, `holiday`, `approval`, `settings` |
 | `calendar` | Read-only calendar views: leaves, holidays, team availability | `shared`, `organization`, `leavepolicy`, `leave`, `holiday` |
 | `notification` | In-app notifications (SSE) driven by domain events; email later | `shared`, `identity`, `organization`, `leave`, `approval`, `balance` |
@@ -28,12 +28,12 @@ organization, settings                 ← foundations
 identity → organization                platform → identity
 leavepolicy → organization, settings   holiday → organization, settings
 balance → organization, leavepolicy, settings
-approval → organization, identity
+approval → organization, identity, leavepolicy
 leave → organization, leavepolicy, balance, holiday, approval, settings
 calendar, notification, reporting, audit  ← read-side consumers
 ```
 
-`approval` deliberately does **not** depend on `leave`: `leave` starts an approval and passes in what the workflow needs, then reacts to approval events. That keeps the graph free of cycles.
+`approval` deliberately does **not** depend on `leave`: `leave` starts an approval and passes in what the workflow needs (leave type, days), then reacts to approval events. That keeps the graph free of cycles. `approval` uses `leavepolicy` only to validate leave types named in workflow rules.
 
 ## Rules
 
@@ -43,6 +43,8 @@ Enforced by `ModularityTests` (`ApplicationModules.of(LmsApplication.class).veri
 - Everything outside `api` is internal to its module.
 - `shared` must never depend on a business module. When it needs module data (e.g. the tenant registry, the current user's permissions), it declares an interface that the owning module implements.
 - Side effects (notifications, audit, email) are domain-event listeners (`@ApplicationModuleListener`), never direct calls, so a notification failure can never roll back a leave transaction. Events are stored in Modulith's event publication registry (JPA) and delivered after commit.
+- The one deliberate exception: `leave` applies approval outcomes (`ApprovalCompleted` / `ApprovalRejected`) with a synchronous `@EventListener`, inside the approver's transaction. The decision, the leave status and the balance change are one unit of work - they commit or roll back together - so they are not a side effect.
+- When two modules lock rows in one transaction, the order is fixed to avoid deadlocks: approval before leave request, leave request before balance.
 - Domain events are records placed directly in the publishing module's `api` package (a named interface covers only its own package, not sub-packages), and every event carries the `tenantId`. Listeners bind the tenant from the event (`TenantExecutor`) rather than relying on the executing thread.
 - Enums that appear in a module's `api` types live in `model/enums` and that package is also annotated `@NamedInterface("api")`, so it joins the module's public API.
 - Keep internal classes package-private where Spring/JPA proxying allows, as a second line of defense.
@@ -74,6 +76,7 @@ com.bsolz.lms.shared
 ├── exception/            # ErrorCode, ApiException, ProblemDetail handler and writer
 ├── web/                  # paging helpers
 ├── validation/           # shared Bean Validation constraints (e.g. @HalfDays for leave-day amounts)
+├── storage/              # object storage (S3, in-memory for local/tests) with presigned upload/download URLs
 ├── tenancy/              # tenant context, schema switching, tenant propagation to async work, jobs and events
 └── security/             # filter chains, token validation, tenant filter, current user, permission codes, data scope
     └── local/            # self-signed token issuer for local development and tests only
@@ -106,4 +109,5 @@ Conventions:
 - Boot's Liquibase auto-run is disabled (`spring.liquibase.enabled: false`). `TenantMigrationService` applies the public changelog, then the tenant changelog to each tenant schema; each schema keeps its own Liquibase history table. A tenant whose migration fails is marked `FAILED` and returns 503 until retried, without blocking other tenants. A public-schema failure stops startup.
 - Hibernate never touches the schema (`spring.jpa.hibernate.ddl-auto: none`).
 - Modulith's `event_publication` table is created by Liquibase in `public` and in every tenant schema, not by Modulith.
+- PostgreSQL extensions exist once per database, so they are created in the public changelog (`WITH SCHEMA public`). Tenant SQL refers to their objects schema-qualified (e.g. `public.gist_uuid_ops`), because a tenant connection's `search_path` holds only its own schema.
 - A foreign key to another module's table (e.g. `leave_request.employee_id → employee.id`) is declared in the *dependent* module's changeset, never by editing the owning module's changesets.

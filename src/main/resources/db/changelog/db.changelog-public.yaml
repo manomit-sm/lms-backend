@@ -7,3 +7,5 @@ databaseChangeLog:
       file: db/changelog/changes/public/002-shedlock.yaml
   - include:
       file: db/changelog/changes/public/003-event-publication.yaml
+  - include:
+      file: db/changelog/changes/public/004-btree-gist.yaml

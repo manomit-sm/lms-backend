@@ -2,9 +2,12 @@ package com.bsolz.lms.support;
 
 import static org.awaitility.Awaitility.await;
 
+import com.bsolz.lms.balance.service.AllocationService;
 import com.bsolz.lms.identity.service.CurrentUserAccessService;
 import com.bsolz.lms.leavepolicy.api.LeavePeriodInfo;
 import com.bsolz.lms.leavepolicy.api.LeavePolicyApi;
+import com.bsolz.lms.leavepolicy.service.LeavePeriodService;
+import com.bsolz.lms.leavepolicy.web.dto.LeavePeriodRequest;
 import com.bsolz.lms.organization.model.enums.EmploymentStatus;
 import com.bsolz.lms.organization.model.enums.EmploymentType;
 import com.bsolz.lms.organization.model.enums.Gender;
@@ -47,6 +50,10 @@ public class TestFixtures {
 	private final CurrentUserAccessService accessService;
 
 	private final LeavePolicyApi policyApi;
+
+	private final LeavePeriodService periodService;
+
+	private final AllocationService allocationService;
 
 	private final LocalTokenIssuer tokens;
 
@@ -114,6 +121,33 @@ public class TestFixtures {
 	public UUID leaveTypeId(TestTenant tenant, String code) {
 		return TenantContext.call(tenant.info(), () -> jdbcTemplate
 				.queryForObject("SELECT id FROM leave_type WHERE code = ?", UUID.class, code));
+	}
+
+	/**
+	 * Opens the leave years before and after the seeded current one (if not yet open) and allocates all
+	 * three to every current employee, so leave can be requested for any date within a year of today.
+	 * Allocation is idempotent: call it again after creating more employees.
+	 */
+	public void allocateAroundToday(TestTenant tenant) {
+		TenantContext.run(tenant.info(), () -> {
+			LeavePeriodInfo current = currentPeriod(tenant);
+			LocalDate previousStart = current.startDate().minusYears(1);
+			LocalDate nextStart = current.endDate().plusDays(1);
+			if (policyApi.findPeriodContaining(previousStart).isEmpty()) {
+				periodService.create(new LeavePeriodRequest(null, previousStart, current.startDate().minusDays(1)));
+			}
+			if (policyApi.findPeriodContaining(nextStart).isEmpty()) {
+				periodService.create(new LeavePeriodRequest(null, nextStart, nextStart.plusYears(1).minusDays(1)));
+			}
+			for (LocalDate date : List.of(previousStart, current.startDate(), nextStart)) {
+				allocationService.allocatePeriod(policyApi.findPeriodContaining(date).orElseThrow().id(), null);
+			}
+		});
+	}
+
+	/** Today in the tenant's timezone, as the application sees it. */
+	public LocalDate today(TestTenant tenant) {
+		return LocalDate.now(clock.withZone(tenant.info().timezone()));
 	}
 
 	/** The seeded leave period: the current calendar year. */

@@ -1,6 +1,7 @@
 package com.bsolz.lms.organization.api;
 
 import com.bsolz.lms.organization.model.enums.OrgUnitType;
+import java.time.DayOfWeek;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +27,12 @@ public interface OrganizationApi {
 
 	/** Whether the employee is in the manager's reporting line (direct or indirect). */
 	boolean isInReportingLine(UUID managerId, UUID employeeId);
+
+	/**
+	 * The employee's working days: from their own work schedule, else their location's, else the
+	 * tenant's default. Empty for an unknown employee.
+	 */
+	Set<DayOfWeek> findWorkingDays(UUID employeeId);
 
 	/** Which of the given ids exist as units of that type. */
 	Set<UUID> findExistingUnitIds(OrgUnitType type, Collection<UUID> ids);
