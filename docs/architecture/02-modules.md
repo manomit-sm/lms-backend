@@ -18,7 +18,7 @@ Every direct sub-package of `com.bsolz.lms` is a Spring Modulith application mod
 | `leave` | Leave requests, per-day breakdown, attachments, status history, leave status machine | `shared`, `organization`, `leavepolicy`, `balance`, `holiday`, `approval`, `settings` |
 | `calendar` | Read-only calendar views: leaves, holidays, team availability | `shared`, `organization`, `leavepolicy`, `leave`, `holiday` |
 | `notification` | In-app notifications (SSE) driven by domain events; upcoming-leave reminders; email later | `shared`, `identity`, `organization`, `leavepolicy`, `settings`, `leave`, `approval`, `balance` |
-| `reporting` | Dashboard statistics, reports, asynchronous exports | `shared`, `organization`, `leavepolicy`, `holiday`, `balance`, `leave`, `approval` |
+| `reporting` | Dashboard summary, reports, asynchronous CSV/XLSX exports | `shared`, `settings`, `organization`, `leavepolicy`, `holiday`, `balance`, `leave`, `approval` |
 | `audit` | Activity log and recent-activity feed, populated from domain events | `shared`, `identity`, `organization`, `settings`, `leavepolicy`, `holiday`, `balance`, `approval`, `leave` |
 
 "May depend on" means that module's `api` package only (except `shared`). The graph is acyclic:
@@ -34,6 +34,8 @@ calendar, notification, reporting, audit  ← read-side consumers
 ```
 
 `approval` deliberately does **not** depend on `leave`: `leave` starts an approval and passes in what the workflow needs (leave type, days), then reacts to approval events. That keeps the graph free of cycles. `approval` uses `leavepolicy` only to validate leave types named in workflow rules. `notification` uses `leavepolicy` only for leave type names in its texts, and `settings` for the tenant's timezone.
+
+`reporting` is a read model: its reports query other modules' tables directly with read-only SQL (`ReportQueries`), because cross-module joins and aggregates are what reports are, and going through each module's API row by row would not scale. It never writes to those tables, and its own table (`report_export`) and indexes are declared in its own changesets. When a module renames a column used by a report, the reporting tests fail.
 
 ## Rules
 
@@ -51,6 +53,8 @@ Enforced by `ModularityTests` (`ApplicationModules.of(LmsApplication.class).veri
 - Asynchronous listeners are idempotent: Spring Modulith delivers at least once (a failed or interrupted delivery is resubmitted), so each listener keys what it writes by the event (e.g. `notification.dedup_key`, `activity_log.event_key`) and inserts with `ON CONFLICT DO NOTHING`.
 - Scheduled jobs (`@Scheduled` + ShedLock `@SchedulerLock`) run on one instance at a time and loop over tenants with `TenantJobRunner`, which binds each tenant and isolates failures. Cron expressions live under `lms.jobs.*` (UTC; `"-"` disables a job; the test profile disables all of them and tests call the jobs with chosen dates/times). Anything date-based uses the tenant's own "today" (`SettingsApi.today()`), so every job is idempotent and a missed or repeated run catches up.
 - Modulith's event publication registry exists in `public` and in every tenant schema, so its maintenance is per tenant too: `EventPublicationJobs` resubmits incomplete deliveries and deletes old completed ones in `public` and then in each tenant with the tenant bound (Modulith's own restart resubmission would only see `public`).
+- `ArchitectureRulesTests` enforces three tenancy rules: only `shared.tenancy`, `shared.config` and the migration runner use the raw `DataSource`; no code starts its own threads or executors (work must go through the decorated task executor so the tenant follows it); controllers never read request headers (the tenant comes from the token only).
+- `SecurityMatrixTests` checks every endpoint against every system role, and fails when an endpoint is added without a row in the matrix.
 - Data that belongs to an employee (balances, and later leave requests) is visible to exactly the employees the caller may see: every module checks `organization`'s `EmployeeVisibility` (self / reporting line / everyone) rather than re-deriving the scope.
 - Other modules refer to another module's rows by id only (plain `UUID` columns in JPA, a foreign key in SQL), never through a JPA association across modules.
 

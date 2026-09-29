@@ -37,3 +37,5 @@ databaseChangeLog:
       file: db/changelog/changes/tenant/017-activity-log.yaml
   - include:
       file: db/changelog/changes/tenant/018-leave-type-time-off.yaml
+  - include:
+      file: db/changelog/changes/tenant/019-report-export.yaml

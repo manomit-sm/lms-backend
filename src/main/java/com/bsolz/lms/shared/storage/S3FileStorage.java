@@ -4,6 +4,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
@@ -74,6 +75,12 @@ public class S3FileStorage implements FileStorage {
 		catch (NoSuchKeyException ex) {
 			return false;
 		}
+	}
+
+	@Override
+	public void put(String key, byte[] content, String contentType) {
+		s3.putObject(PutObjectRequest.builder().bucket(bucket).key(key).contentType(contentType).build(),
+				RequestBody.fromBytes(content));
 	}
 
 	private static URI toUri(java.net.URL url) {

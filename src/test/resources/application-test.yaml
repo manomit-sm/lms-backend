@@ -14,6 +14,8 @@ lms:
     upcoming-leave-notifications: "-"
     event-resubmission: "-"
     event-publication-cleanup: "-"
+  cors:
+    allowed-origins: http://localhost:5173
   security:
     local-issuer:
       enabled: true

@@ -1,0 +1,17 @@
+# One-off migration task: apply the public and every tenant changelog, then exit (see MigrationTaskRunner).
+# Activated together with the environment's profile, e.g. SPRING_PROFILES_ACTIVE=aws,migrate.
+
+spring:
+  main:
+    web-application-type: none
+
+lms:
+  platform:
+    migrations:
+      run-on-startup: true
+  jobs:
+    balance-maintenance: "-"
+    approval-deadlines: "-"
+    upcoming-leave-notifications: "-"
+    event-resubmission: "-"
+    event-publication-cleanup: "-"

@@ -35,6 +35,7 @@
 		<aws-sdk.version>2.55.6</aws-sdk.version>
 		<archunit.version>1.5.1</archunit.version>
 		<lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
+		<poi.version>5.5.1</poi.version>
 	</properties>
 	<dependencies>
 		<!-- Web & API -->
@@ -55,6 +56,12 @@
 		<dependency>
 			<groupId>tools.jackson.dataformat</groupId>
 			<artifactId>jackson-dataformat-csv</artifactId>
+		</dependency>
+		<!-- Report exports as XLSX -->
+		<dependency>
+			<groupId>org.apache.poi</groupId>
+			<artifactId>poi-ooxml</artifactId>
+			<version>${poi.version}</version>
 		</dependency>
 
 		<!-- Security: Cognito-issued JWTs, backend is a plain OAuth2 resource server -->

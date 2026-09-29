@@ -4,6 +4,7 @@ import com.bsolz.lms.shared.exception.ProblemDetailResponseWriter;
 import com.bsolz.lms.shared.security.local.LocalTokenIssuer;
 import com.bsolz.lms.shared.tenancy.TenantRegistry;
 import jakarta.servlet.DispatcherType;
+import java.time.Duration;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -11,6 +12,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -27,6 +29,9 @@ import org.springframework.security.oauth2.jwt.SupplierJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
  * Three stateless filter chains:
@@ -41,7 +46,7 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
 @EnableMethodSecurity
-@EnableConfigurationProperties(SecurityProperties.class)
+@EnableConfigurationProperties({ SecurityProperties.class, CorsProperties.class })
 class SecurityConfig {
 
 	private static final String PLATFORM_ADMIN_ROLE = "PLATFORM_ADMIN";
@@ -96,9 +101,26 @@ class SecurityConfig {
 		return statelessApi(http, handlers).build();
 	}
 
+	/** CORS for the frontend: preflight requests are answered before authentication. */
+	@Bean
+	CorsConfigurationSource corsConfigurationSource(CorsProperties properties) {
+		CorsConfiguration cors = new CorsConfiguration();
+		cors.setAllowedOriginPatterns(properties.allowedOrigins());
+		cors.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+		cors.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept", "Cache-Control", "Last-Event-ID"));
+		cors.setExposedHeaders(List.of("Location", "Content-Disposition"));
+		cors.setAllowCredentials(false);
+		cors.setMaxAge(Duration.ofHours(1));
+		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+		source.registerCorsConfiguration("/api/**", cors);
+		source.registerCorsConfiguration("/platform/**", cors);
+		return source;
+	}
+
 	private static HttpSecurity statelessApi(HttpSecurity http, ProblemDetailSecurityHandlers handlers)
 			throws Exception {
-		return http.csrf(AbstractHttpConfigurer::disable)
+		return http.cors(Customizer.withDefaults())
+				.csrf(AbstractHttpConfigurer::disable)
 				.httpBasic(AbstractHttpConfigurer::disable)
 				.formLogin(AbstractHttpConfigurer::disable)
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
