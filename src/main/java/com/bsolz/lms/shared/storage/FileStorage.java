@@ -1,8 +1,9 @@
 package com.bsolz.lms.shared.storage;
 
 /**
- * Object storage for user files. Clients upload and download directly with presigned URLs, so file
- * bytes never pass through the application. Keys must start with {@code tenants/<tenantId>/}.
+ * Object storage for user files. Clients upload and download directly with presigned URLs, so user
+ * uploads never pass through the application; files the application produces itself (report exports)
+ * are stored with {@link #put}. Keys must start with {@code tenants/<tenantId>/}.
  */
 public interface FileStorage {
 
@@ -13,5 +14,8 @@ public interface FileStorage {
 	PresignedDownload presignDownload(String key, String fileName);
 
 	boolean exists(String key);
+
+	/** Stores a file the application generated. */
+	void put(String key, byte[] content, String contentType);
 
 }

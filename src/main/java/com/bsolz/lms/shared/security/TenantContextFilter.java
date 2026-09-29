@@ -14,6 +14,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.MDC;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
@@ -36,6 +37,9 @@ import org.springframework.web.filter.OncePerRequestFilter;
  */
 @RequiredArgsConstructor
 class TenantContextFilter extends OncePerRequestFilter {
+
+	/** Logging MDC key of the authenticated tenant user's id. */
+	static final String MDC_USER_ID = "userId";
 
 	private final TenantRegistry tenantRegistry;
 
@@ -102,7 +106,13 @@ class TenantContextFilter extends OncePerRequestFilter {
 		SecurityContext context = SecurityContextHolder.createEmptyContext();
 		context.setAuthentication(new LmsAuthentication(principal, jwt));
 		SecurityContextHolder.setContext(context);
-		chain.doFilter(request, response);
+		if (principal.userId() == null) {
+			chain.doFilter(request, response);
+			return;
+		}
+		try (MDC.MDCCloseable ignored = MDC.putCloseable(MDC_USER_ID, principal.userId().toString())) {
+			chain.doFilter(request, response);
+		}
 	}
 
 }

@@ -1,0 +1,15 @@
+# Deployed environments (ECS on AWS). Configuration comes from environment variables and Secrets Manager;
+# see the runbook for the full list.
+
+logging:
+  structured:
+    # One JSON object per line (Elastic Common Schema) for CloudWatch Logs Insights; every MDC entry -
+    # tenant, tenantId, userId - becomes a field
+    format:
+      console: ecs
+
+lms:
+  platform:
+    migrations:
+      # Migrations run as a separate one-off task (profile "migrate") before each rollout
+      run-on-startup: false

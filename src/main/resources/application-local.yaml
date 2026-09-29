@@ -8,6 +8,9 @@ lms:
   storage:
     # In-memory storage: presigned URLs point nowhere and every presigned upload counts as done
     provider: fake
+  cors:
+    # Vite / Next.js dev servers
+    allowed-origins: http://localhost:5173,http://localhost:3000
   security:
     local-issuer:
       enabled: true
