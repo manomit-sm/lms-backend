@@ -177,11 +177,13 @@ public class LeaveRequestService {
 		return views.detail(request);
 	}
 
-	/** Approval completed. {@code approverUserId} is null when it completed automatically. */
-	void approved(UUID id, UUID approverUserId) {
+	/**
+	 * Approval completed. {@code approverUserId} is null when it completed automatically, and
+	 * {@code automaticNote} then says why.
+	 */
+	void approved(UUID id, UUID approverUserId, String automaticNote) {
 		LeaveRequest request = lock(id);
-		transition(request, LeaveAction.APPROVE, approverUserId,
-				approverUserId == null ? "Approved automatically: no approval step had an approver" : null);
+		transition(request, LeaveAction.APPROVE, approverUserId, automaticNote);
 		balanceApi.consume(id);
 	}
 
@@ -191,9 +193,9 @@ public class LeaveRequestService {
 		balanceApi.release(id);
 	}
 
-	void cancellationApproved(UUID id, UUID approverUserId) {
+	void cancellationApproved(UUID id, UUID approverUserId, String automaticNote) {
 		LeaveRequest request = lock(id);
-		transition(request, LeaveAction.APPROVE_CANCELLATION, approverUserId, null);
+		transition(request, LeaveAction.APPROVE_CANCELLATION, approverUserId, automaticNote);
 		balanceApi.reverse(id);
 	}
 
@@ -212,10 +214,12 @@ public class LeaveRequestService {
 	}
 
 	private void record(LeaveRequest request, LeaveStatus from, LeaveAction action, UUID actorUserId, String comment) {
+		Instant now = Instant.now(clock);
 		historyRepository.save(new LeaveRequestHistory(request.getId(), from, request.getStatus(), action, actorUserId,
-				comment, Instant.now(clock)));
+				comment, now));
 		events.publishEvent(new LeaveRequestStatusChanged(TenantContext.require().id(), request.getId(),
-				request.getEmployeeId(), request.getLeaveTypeId(), from, request.getStatus(), action, actorUserId));
+				request.getEmployeeId(), request.getLeaveTypeId(), from, request.getStatus(), action, actorUserId,
+				comment, now));
 	}
 
 	private LeaveRequest lock(UUID id) {

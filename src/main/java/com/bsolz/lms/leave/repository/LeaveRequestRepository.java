@@ -8,6 +8,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Lock;
@@ -30,5 +31,21 @@ public interface LeaveRequestRepository extends JpaRepository<LeaveRequest, UUID
 			@Param("endDate") LocalDate endDate, @Param("statuses") Collection<LeaveStatus> statuses);
 
 	List<LeaveRequest> findAllByIdIn(Collection<UUID> ids);
+
+	@EntityGraph(attributePaths = "days")
+	@Query("""
+			select distinct r from LeaveRequest r
+			where r.employeeId in :employeeIds and r.status in :statuses
+			  and r.startDate <= :to and r.endDate >= :from
+			order by r.startDate, r.id
+			""")
+	List<LeaveRequest> findOverlapping(@Param("employeeIds") Collection<UUID> employeeIds,
+			@Param("from") LocalDate from, @Param("to") LocalDate to, @Param("statuses") Collection<LeaveStatus> statuses);
+
+	@EntityGraph(attributePaths = "days")
+	List<LeaveRequest> findAllByStartDateAndStatusIn(LocalDate startDate, Collection<LeaveStatus> statuses);
+
+	@EntityGraph(attributePaths = "days")
+	Optional<LeaveRequest> findWithDaysById(UUID id);
 
 }

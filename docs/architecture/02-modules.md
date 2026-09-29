@@ -17,7 +17,7 @@ Every direct sub-package of `com.bsolz.lms` is a Spring Modulith application mod
 | `approval` | Approval workflow definitions, runtime instances and tasks, delegation, escalation | `shared`, `organization`, `identity`, `leavepolicy` |
 | `leave` | Leave requests, per-day breakdown, attachments, status history, leave status machine | `shared`, `organization`, `leavepolicy`, `balance`, `holiday`, `approval`, `settings` |
 | `calendar` | Read-only calendar views: leaves, holidays, team availability | `shared`, `organization`, `leavepolicy`, `leave`, `holiday` |
-| `notification` | In-app notifications (SSE) driven by domain events; email later | `shared`, `identity`, `organization`, `leave`, `approval`, `balance` |
+| `notification` | In-app notifications (SSE) driven by domain events; upcoming-leave reminders; email later | `shared`, `identity`, `organization`, `leavepolicy`, `settings`, `leave`, `approval`, `balance` |
 | `reporting` | Dashboard statistics, reports, asynchronous exports | `shared`, `organization`, `leavepolicy`, `holiday`, `balance`, `leave`, `approval` |
 | `audit` | Activity log and recent-activity feed, populated from domain events | `shared`, `identity`, `organization`, `settings`, `leavepolicy`, `holiday`, `balance`, `approval`, `leave` |
 
@@ -33,7 +33,7 @@ leave → organization, leavepolicy, balance, holiday, approval, settings
 calendar, notification, reporting, audit  ← read-side consumers
 ```
 
-`approval` deliberately does **not** depend on `leave`: `leave` starts an approval and passes in what the workflow needs (leave type, days), then reacts to approval events. That keeps the graph free of cycles. `approval` uses `leavepolicy` only to validate leave types named in workflow rules.
+`approval` deliberately does **not** depend on `leave`: `leave` starts an approval and passes in what the workflow needs (leave type, days), then reacts to approval events. That keeps the graph free of cycles. `approval` uses `leavepolicy` only to validate leave types named in workflow rules. `notification` uses `leavepolicy` only for leave type names in its texts, and `settings` for the tenant's timezone.
 
 ## Rules
 
@@ -48,6 +48,9 @@ Enforced by `ModularityTests` (`ApplicationModules.of(LmsApplication.class).veri
 - Domain events are records placed directly in the publishing module's `api` package (a named interface covers only its own package, not sub-packages), and every event carries the `tenantId`. Listeners bind the tenant from the event (`TenantExecutor`) rather than relying on the executing thread.
 - Enums that appear in a module's `api` types live in `model/enums` and that package is also annotated `@NamedInterface("api")`, so it joins the module's public API.
 - Keep internal classes package-private where Spring/JPA proxying allows, as a second line of defense.
+- Asynchronous listeners are idempotent: Spring Modulith delivers at least once (a failed or interrupted delivery is resubmitted), so each listener keys what it writes by the event (e.g. `notification.dedup_key`, `activity_log.event_key`) and inserts with `ON CONFLICT DO NOTHING`.
+- Scheduled jobs (`@Scheduled` + ShedLock `@SchedulerLock`) run on one instance at a time and loop over tenants with `TenantJobRunner`, which binds each tenant and isolates failures. Cron expressions live under `lms.jobs.*` (UTC; `"-"` disables a job; the test profile disables all of them and tests call the jobs with chosen dates/times). Anything date-based uses the tenant's own "today" (`SettingsApi.today()`), so every job is idempotent and a missed or repeated run catches up.
+- Modulith's event publication registry exists in `public` and in every tenant schema, so its maintenance is per tenant too: `EventPublicationJobs` resubmits incomplete deliveries and deletes old completed ones in `public` and then in each tenant with the tenant bound (Modulith's own restart resubmission would only see `public`).
 - Data that belongs to an employee (balances, and later leave requests) is visible to exactly the employees the caller may see: every module checks `organization`'s `EmployeeVisibility` (self / reporting line / everyone) rather than re-deriving the scope.
 - Other modules refer to another module's rows by id only (plain `UUID` columns in JPA, a foreign key in SQL), never through a JPA association across modules.
 
@@ -77,7 +80,8 @@ com.bsolz.lms.shared
 ├── web/                  # paging helpers
 ├── validation/           # shared Bean Validation constraints (e.g. @HalfDays for leave-day amounts)
 ├── storage/              # object storage (S3, in-memory for local/tests) with presigned upload/download URLs
-├── tenancy/              # tenant context, schema switching, tenant propagation to async work, jobs and events
+├── tenancy/              # tenant context, schema switching, tenant propagation to async work, jobs and events,
+│                         # per-tenant event publication maintenance
 └── security/             # filter chains, token validation, tenant filter, current user, permission codes, data scope
     └── local/            # self-signed token issuer for local development and tests only
 ```

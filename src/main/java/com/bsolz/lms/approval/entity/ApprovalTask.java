@@ -48,6 +48,13 @@ public class ApprovalTask extends BaseEntity {
 
 	private String comment;
 
+	/** When the step became current; its deadlines count from here. */
+	private Instant activatedAt;
+
+	private Instant lastRemindedAt;
+
+	private Instant escalatedAt;
+
 	@ElementCollection
 	@CollectionTable(name = "approval_task_assignee", joinColumns = @JoinColumn(name = "approval_task_id"))
 	@Column(name = "user_id")
@@ -68,8 +75,19 @@ public class ApprovalTask extends BaseEntity {
 		return assigneeUserIds.contains(userId);
 	}
 
-	void activate() {
+	void activate(Instant at) {
 		status = ApprovalTaskStatus.PENDING;
+		activatedAt = at;
+	}
+
+	public void reminded(Instant at) {
+		lastRemindedAt = at;
+	}
+
+	/** Adds approvers once the step is overdue; recorded even when there was nobody to add. */
+	public void escalate(Set<UUID> additionalAssignees, Instant at) {
+		assigneeUserIds.addAll(additionalAssignees);
+		escalatedAt = at;
 	}
 
 	void decide(ApprovalTaskStatus decision, UUID userId, String decisionComment, Instant at) {

@@ -80,13 +80,13 @@ class EmployeeApiTests {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.firstName").value("Nina"));
 
-		// The event went through the tenant's own outbox, one publication per listener (identity, balance),
-		// and each was marked complete there - never via public.
+		// The event went through the tenant's own outbox, one publication per listener (identity, balance,
+		// audit), and each was marked complete there - never via public.
 		String publications = "SELECT count(*) FILTER (WHERE completion_date IS NULL) AS open, count(*) AS total"
 				+ " FROM event_publication WHERE event_type LIKE '%EmployeeCreated'"
 				+ " AND serialized_event LIKE '%" + email.toLowerCase() + "%'";
 		await().atMost(Duration.ofSeconds(15)).until(() -> TenantContext.call(tenant.info(),
-				() -> jdbcTemplate.queryForMap(publications)).equals(Map.of("open", 0L, "total", 2L)));
+				() -> jdbcTemplate.queryForMap(publications)).equals(Map.of("open", 0L, "total", 3L)));
 		assertThat(jdbcTemplate.queryForObject(
 				"SELECT count(*) FROM public.event_publication WHERE event_type LIKE '%EmployeeCreated'", Integer.class))
 				.isZero();

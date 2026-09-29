@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 016-notification
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/tenant/016-notification.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

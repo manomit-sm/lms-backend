@@ -7,6 +7,13 @@ lms:
   storage:
     # In-memory storage: presigned URLs point nowhere and every presigned upload counts as done
     provider: fake
+  jobs:
+    # Tests run the jobs themselves, at the times they choose
+    balance-maintenance: "-"
+    approval-deadlines: "-"
+    upcoming-leave-notifications: "-"
+    event-resubmission: "-"
+    event-publication-cleanup: "-"
   security:
     local-issuer:
       enabled: true

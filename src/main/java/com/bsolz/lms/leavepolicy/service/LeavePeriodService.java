@@ -11,6 +11,7 @@ import com.bsolz.lms.shared.exception.ApiException;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -81,10 +82,43 @@ public class LeavePeriodService {
 		return mapper.toResponse(repository.save(period));
 	}
 
+	/**
+	 * The period containing the date, created if missing: the leave year containing it, shortened to fit
+	 * between the neighbouring periods. Used by the rollover job, so it never fails on a name clash.
+	 */
+	LeavePeriod openContaining(LocalDate date) {
+		Optional<LeavePeriod> existing = repository.findContaining(date);
+		if (existing.isPresent()) {
+			return existing.get();
+		}
+		LocalDate start = leaveYearStart(date);
+		LocalDate end = start.plusYears(1).minusDays(1);
+		Optional<LeavePeriod> previous = repository.findFirstByEndDateBeforeOrderByEndDateDesc(date);
+		if (previous.isPresent() && !previous.get().getEndDate().isBefore(start)) {
+			start = previous.get().getEndDate().plusDays(1);
+		}
+		Optional<LeavePeriod> next = repository.findFirstByStartDateAfterOrderByStartDateAsc(date);
+		if (next.isPresent() && !next.get().getStartDate().isAfter(end)) {
+			end = next.get().getStartDate().minusDays(1);
+		}
+		String name = defaultName(start, end);
+		if (repository.existsByNameIgnoreCase(name)) {
+			name = start + " to " + end;
+		}
+		LeavePeriod period = new LeavePeriod();
+		period.setName(name);
+		period.setStartDate(start);
+		period.setEndDate(end);
+		return repository.saveAndFlush(period);
+	}
+
 	private LocalDate currentLeaveYearStart() {
-		LocalDate today = settings.today();
-		LocalDate start = today.withMonth(settings.current().leaveYearStartMonth()).withDayOfMonth(1);
-		return start.isAfter(today) ? start.minusYears(1) : start;
+		return leaveYearStart(settings.today());
+	}
+
+	private LocalDate leaveYearStart(LocalDate date) {
+		LocalDate start = date.withMonth(settings.current().leaveYearStartMonth()).withDayOfMonth(1);
+		return start.isAfter(date) ? start.minusYears(1) : start;
 	}
 
 	private static String defaultName(LocalDate start, LocalDate end) {

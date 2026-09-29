@@ -13,6 +13,7 @@ import com.bsolz.lms.organization.web.dto.ExitEmployeeRequest;
 import com.bsolz.lms.shared.exception.ApiException;
 import com.bsolz.lms.shared.security.CurrentUser;
 import com.bsolz.lms.shared.security.DataScope;
+import com.bsolz.lms.shared.security.LmsPrincipal;
 import com.bsolz.lms.shared.tenancy.TenantContext;
 import jakarta.persistence.criteria.Predicate;
 import java.util.ArrayList;
@@ -134,7 +135,7 @@ public class EmployeeService {
 		Employee employee = new Employee();
 		apply(employee, request, email);
 		employee = employeeRepository.save(employee);
-		events.publishEvent(new EmployeeCreated(TenantContext.require().id(), employee.getId(), email));
+		events.publishEvent(new EmployeeCreated(TenantContext.require().id(), employee.getId(), email, currentUserId()));
 		return mapper.toResponse(employee);
 	}
 
@@ -173,7 +174,7 @@ public class EmployeeService {
 					"Reassign this employee's direct reports before they exit");
 		}
 		employee.exit(request.exitDate());
-		events.publishEvent(new EmployeeExited(TenantContext.require().id(), id, request.exitDate()));
+		events.publishEvent(new EmployeeExited(TenantContext.require().id(), id, request.exitDate(), currentUserId()));
 		return mapper.toResponse(employee);
 	}
 
@@ -241,6 +242,10 @@ public class EmployeeService {
 	private static ApiException emailTaken(String email) {
 		return new ApiException(OrganizationErrorCode.EMPLOYEE_EMAIL_TAKEN,
 				"An employee with email '" + email + "' already exists");
+	}
+
+	private static UUID currentUserId() {
+		return CurrentUser.find().map(LmsPrincipal::userId).orElse(null);
 	}
 
 }

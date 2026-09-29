@@ -18,6 +18,19 @@ public interface LeavePolicyApi {
 
 	Optional<LeavePeriodInfo> findPeriodContaining(LocalDate date);
 
+	/** Open periods, oldest first. */
+	List<LeavePeriodInfo> findOpenPeriods();
+
+	/**
+	 * The period containing the date, creating it first if there is none: the leave year (from the
+	 * tenant's leave-year start month) containing the date, shortened where it would overlap an existing
+	 * period. Joins the caller's transaction, or runs in its own.
+	 */
+	LeavePeriodInfo openPeriodContaining(LocalDate date);
+
+	/** Marks the period closed: its year-end processing is done. Idempotent. */
+	void closePeriod(UUID leavePeriodId);
+
 	/**
 	 * The policy for this employee and leave type on {@code asOf}: among the active policies of the (active)
 	 * leave type in effect that day, the one whose best matching applicability rule is most specific.

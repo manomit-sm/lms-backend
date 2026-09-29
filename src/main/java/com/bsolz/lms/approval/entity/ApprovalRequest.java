@@ -52,6 +52,13 @@ public class ApprovalRequest extends BaseEntity {
 
 	private Instant completedAt;
 
+	/** Deadlines snapshotted from the workflow; see {@link ApprovalWorkflow}. */
+	private Integer reminderAfterHours;
+
+	private Integer escalateAfterHours;
+
+	private Integer autoApproveAfterHours;
+
 	@OneToMany(mappedBy = "approvalRequest", cascade = CascadeType.ALL, orphanRemoval = true)
 	@OrderBy("stepOrder")
 	private List<ApprovalTask> tasks = new ArrayList<>();
@@ -64,6 +71,9 @@ public class ApprovalRequest extends BaseEntity {
 		this.requesterUserId = requesterUserId;
 		this.workflowId = workflow.getId();
 		this.workflowName = workflow.getName();
+		this.reminderAfterHours = workflow.getReminderAfterHours();
+		this.escalateAfterHours = workflow.getEscalateAfterHours();
+		this.autoApproveAfterHours = workflow.getAutoApproveAfterHours();
 		this.status = ApprovalStatus.PENDING;
 	}
 
@@ -84,11 +94,11 @@ public class ApprovalRequest extends BaseEntity {
 		Optional<ApprovalTask> next = tasks.stream()
 				.filter(task -> task.getStatus() == ApprovalTaskStatus.WAITING)
 				.findFirst();
-		next.ifPresentOrElse(ApprovalTask::activate, () -> finish(ApprovalStatus.APPROVED, at));
+		next.ifPresentOrElse(task -> task.activate(at), () -> finish(ApprovalStatus.APPROVED, at));
 		return next;
 	}
 
-	/** Approves the current step, then advances. */
+	/** Approves the current step, then advances. {@code userId} is null for an automatic approval. */
 	public Optional<ApprovalTask> approve(ApprovalTask task, UUID userId, String comment, Instant at) {
 		task.decide(ApprovalTaskStatus.APPROVED, userId, comment, at);
 		return advance(at);

@@ -1,6 +1,7 @@
 package com.bsolz.lms.leavepolicy.repository;
 
 import com.bsolz.lms.leavepolicy.entity.LeavePeriod;
+import com.bsolz.lms.leavepolicy.model.enums.LeavePeriodStatus;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -14,6 +15,14 @@ public interface LeavePeriodRepository extends JpaRepository<LeavePeriod, UUID> 
 	List<LeavePeriod> findAllByOrderByStartDateDesc();
 
 	Optional<LeavePeriod> findFirstByOrderByEndDateDesc();
+
+	List<LeavePeriod> findAllByStatusOrderByStartDateAsc(LeavePeriodStatus status);
+
+	/** The latest period ending before the date. */
+	Optional<LeavePeriod> findFirstByEndDateBeforeOrderByEndDateDesc(LocalDate date);
+
+	/** The earliest period starting after the date. */
+	Optional<LeavePeriod> findFirstByStartDateAfterOrderByStartDateAsc(LocalDate date);
 
 	@Query("select p from LeavePeriod p where p.startDate <= :date and p.endDate >= :date")
 	Optional<LeavePeriod> findContaining(@Param("date") LocalDate date);

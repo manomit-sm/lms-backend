@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 018-leave-type-time-off
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/tenant/018-leave-type-time-off.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

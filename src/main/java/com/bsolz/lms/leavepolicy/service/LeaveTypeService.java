@@ -74,6 +74,7 @@ public class LeaveTypeService {
 		leaveType.setColor(request.color().toUpperCase(Locale.ROOT));
 		leaveType.setPaid(request.paid());
 		leaveType.setBalanceTracked(request.balanceTracked());
+		leaveType.setTimeOff(request.timeOff() == null || request.timeOff());
 		leaveType.setHalfDayAllowed(request.halfDayAllowed() == null || request.halfDayAllowed());
 		leaveType.setActive(request.active() == null || request.active());
 		leaveType.setSortOrder(request.sortOrder() == null ? 0 : request.sortOrder());

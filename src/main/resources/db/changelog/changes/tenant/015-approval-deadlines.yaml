@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - changeSet:
+      id: 015-approval-deadlines
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/tenant/015-approval-deadlines.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false
+      rollback:
+        - sqlFile:
+            path: db/changelog/sql/tenant/015-approval-deadlines-rollback.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

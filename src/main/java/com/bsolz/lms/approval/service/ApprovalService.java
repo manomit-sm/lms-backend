@@ -5,6 +5,9 @@ import com.bsolz.lms.approval.api.ApprovalCompleted;
 import com.bsolz.lms.approval.api.ApprovalRejected;
 import com.bsolz.lms.approval.api.ApprovalStarted;
 import com.bsolz.lms.approval.api.ApprovalTaskAssigned;
+import com.bsolz.lms.approval.api.ApprovalTaskDecided;
+import com.bsolz.lms.approval.api.ApprovalTaskEscalated;
+import com.bsolz.lms.approval.api.ApprovalTaskReminded;
 import com.bsolz.lms.approval.api.ApprovalView;
 import com.bsolz.lms.approval.api.PendingTask;
 import com.bsolz.lms.approval.api.StartApproval;
@@ -20,14 +23,20 @@ import com.bsolz.lms.approval.model.enums.ApprovalTaskStatus;
 import com.bsolz.lms.approval.repository.ApprovalRequestRepository;
 import com.bsolz.lms.approval.repository.ApprovalTaskRepository;
 import com.bsolz.lms.approval.repository.ApprovalWorkflowRepository;
+import com.bsolz.lms.identity.api.IdentityApi;
+import com.bsolz.lms.identity.api.UserSummary;
 import com.bsolz.lms.organization.api.EmployeeSummary;
 import com.bsolz.lms.organization.api.OrganizationApi;
 import com.bsolz.lms.shared.exception.ApiException;
 import com.bsolz.lms.shared.security.CurrentUser;
+import com.bsolz.lms.shared.security.SystemRoles;
 import com.bsolz.lms.shared.tenancy.TenantContext;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -57,6 +66,8 @@ public class ApprovalService implements ApprovalApi {
 
 	private final OrganizationApi organizationApi;
 
+	private final IdentityApi identityApi;
+
 	private final ApplicationEventPublisher events;
 
 	private final Clock clock;
@@ -80,7 +91,7 @@ public class ApprovalService implements ApprovalApi {
 			approval.addStep(step.approverType(), resolution.description(), resolution.userIds(), resolution.skipReason());
 		}
 		requestRepository.save(approval);
-		publishOutcome(approval, approval.advance(now()), null);
+		publishOutcome(approval, approval.advance(now()), null, "No approval step had an approver");
 		return new ApprovalStarted(approval.getId(), approval.getStatus());
 	}
 
@@ -89,7 +100,9 @@ public class ApprovalService implements ApprovalApi {
 		UUID userId = CurrentUser.require().userId();
 		ApprovalRequest approval = lockApprovalOf(taskId);
 		ApprovalTask task = requireDecidable(approval, taskId, userId);
-		publishOutcome(approval, approval.approve(task, userId, blankToNull(comment), now()), userId);
+		Optional<ApprovalTask> next = approval.approve(task, userId, blankToNull(comment), now());
+		publishDecision(approval, task);
+		publishOutcome(approval, next, userId, null);
 		return views.toView(approval);
 	}
 
@@ -102,6 +115,7 @@ public class ApprovalService implements ApprovalApi {
 		ApprovalRequest approval = lockApprovalOf(taskId);
 		ApprovalTask task = requireDecidable(approval, taskId, userId);
 		approval.reject(task, userId, comment.trim(), now());
+		publishDecision(approval, task);
 		events.publishEvent(new ApprovalRejected(TenantContext.require().id(), approval.getId(),
 				approval.getSubjectType(), approval.getSubjectId(), userId, comment.trim()));
 		return views.toView(approval);
@@ -156,7 +170,91 @@ public class ApprovalService implements ApprovalApi {
 		return task;
 	}
 
-	private void publishOutcome(ApprovalRequest approval, Optional<ApprovalTask> nextStep, UUID decidedBy) {
+	/**
+	 * Applies the approval's deadlines to its current step, if {@code taskId} still is that step: approves it
+	 * automatically, else escalates it, else reminds its approvers - whichever is due first, one per call.
+	 */
+	public DeadlineAction applyDeadlines(UUID taskId, Instant now) {
+		ApprovalRequest approval = lockApprovalOf(taskId);
+		Optional<ApprovalTask> current = approval.currentTask().filter(task -> task.getId().equals(taskId));
+		if (approval.getStatus() != ApprovalStatus.PENDING || current.isEmpty()
+				|| current.get().getActivatedAt() == null) {
+			return DeadlineAction.NONE;
+		}
+		ApprovalTask task = current.get();
+		UUID tenantId = TenantContext.require().id();
+		if (isDue(task.getActivatedAt(), approval.getAutoApproveAfterHours(), now)) {
+			String note = "Approved automatically after " + approval.getAutoApproveAfterHours()
+					+ " hours without a decision";
+			Optional<ApprovalTask> next = approval.approve(task, null, note, now);
+			publishDecision(approval, task);
+			publishOutcome(approval, next, null, note);
+			return DeadlineAction.AUTO_APPROVED;
+		}
+		if (task.getEscalatedAt() == null && isDue(task.getActivatedAt(), approval.getEscalateAfterHours(), now)) {
+			Set<UUID> added = escalationTargets(approval, task);
+			task.escalate(added, now);
+			if (added.isEmpty()) {
+				return DeadlineAction.NONE;
+			}
+			events.publishEvent(new ApprovalTaskEscalated(tenantId, approval.getId(), task.getId(),
+					approval.getSubjectType(), approval.getSubjectId(), approval.getRequesterEmployeeId(),
+					Set.copyOf(added), task.getActivatedAt(), now));
+			return DeadlineAction.ESCALATED;
+		}
+		Instant lastNudge = task.getLastRemindedAt() != null ? task.getLastRemindedAt() : task.getActivatedAt();
+		if (isDue(lastNudge, approval.getReminderAfterHours(), now)) {
+			task.reminded(now);
+			events.publishEvent(new ApprovalTaskReminded(tenantId, approval.getId(), task.getId(),
+					approval.getSubjectType(), approval.getSubjectId(), Set.copyOf(task.getAssigneeUserIds()),
+					task.getActivatedAt(), now));
+			return DeadlineAction.REMINDED;
+		}
+		return DeadlineAction.NONE;
+	}
+
+	/** Current steps of pending approvals that have any deadline. */
+	@Transactional(readOnly = true)
+	public List<UUID> findTasksWithDeadlines() {
+		return taskRepository.findPendingIdsWithDeadlines();
+	}
+
+	/**
+	 * The current approvers' managers; if none of them has one who can approve, the HR admins. Never the
+	 * requester, and nobody already assigned.
+	 */
+	private Set<UUID> escalationTargets(ApprovalRequest approval, ApprovalTask task) {
+		Set<UUID> excluded = new HashSet<>(task.getAssigneeUserIds());
+		excluded.add(approval.getRequesterUserId());
+		List<UUID> assigneeEmployeeIds = identityApi.findUsers(task.getAssigneeUserIds()).stream()
+				.map(UserSummary::employeeId).filter(Objects::nonNull).toList();
+		Set<UUID> targets = new HashSet<>();
+		organizationApi.findEmployees(assigneeEmployeeIds).stream()
+				.map(EmployeeSummary::reportingManagerId)
+				.filter(Objects::nonNull)
+				.filter(managerId -> !managerId.equals(approval.getRequesterEmployeeId()))
+				.forEach(managerId -> identityApi.findEnabledUserIdByEmployeeId(managerId).ifPresent(targets::add));
+		targets.removeAll(excluded);
+		if (targets.isEmpty()) {
+			targets.addAll(identityApi.findEnabledUserIdsWithRole(SystemRoles.HR_ADMIN));
+			targets.removeAll(excluded);
+		}
+		return targets;
+	}
+
+	private static boolean isDue(Instant since, Integer afterHours, Instant now) {
+		return afterHours != null && !since.plus(Duration.ofHours(afterHours)).isAfter(now);
+	}
+
+	private void publishDecision(ApprovalRequest approval, ApprovalTask task) {
+		events.publishEvent(new ApprovalTaskDecided(TenantContext.require().id(), approval.getId(), task.getId(),
+				approval.getSubjectType(), approval.getSubjectId(), approval.getRequesterEmployeeId(),
+				task.getStepOrder(), task.getStatus(), task.getActedByUserId(), task.getComment(), approval.getStatus(),
+				task.getActedAt()));
+	}
+
+	private void publishOutcome(ApprovalRequest approval, Optional<ApprovalTask> nextStep, UUID decidedBy,
+			String automaticNote) {
 		UUID tenantId = TenantContext.require().id();
 		if (nextStep.isPresent()) {
 			events.publishEvent(new ApprovalTaskAssigned(tenantId, approval.getId(), nextStep.get().getId(),
@@ -164,8 +262,15 @@ public class ApprovalService implements ApprovalApi {
 		}
 		else if (approval.getStatus() == ApprovalStatus.APPROVED) {
 			events.publishEvent(new ApprovalCompleted(tenantId, approval.getId(), approval.getSubjectType(),
-					approval.getSubjectId(), decidedBy));
+					approval.getSubjectId(), decidedBy, decidedBy == null ? automaticNote : null));
 		}
+	}
+
+	/** What {@link #applyDeadlines} did. */
+	public enum DeadlineAction {
+
+		NONE, REMINDED, ESCALATED, AUTO_APPROVED
+
 	}
 
 	private Instant now() {

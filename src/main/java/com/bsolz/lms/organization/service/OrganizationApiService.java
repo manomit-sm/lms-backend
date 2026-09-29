@@ -2,6 +2,7 @@ package com.bsolz.lms.organization.service;
 
 import com.bsolz.lms.organization.api.EmployeeSummary;
 import com.bsolz.lms.organization.api.OrganizationApi;
+import com.bsolz.lms.organization.entity.Location;
 import com.bsolz.lms.organization.entity.WorkSchedule;
 import com.bsolz.lms.organization.mapper.OrganizationMapper;
 import com.bsolz.lms.organization.model.enums.EmploymentStatus;
@@ -13,6 +14,7 @@ import com.bsolz.lms.organization.repository.LocationRepository;
 import com.bsolz.lms.organization.repository.WorkScheduleRepository;
 import com.bsolz.lms.shared.entity.BaseEntity;
 import java.time.DayOfWeek;
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -59,6 +61,24 @@ class OrganizationApiService implements OrganizationApi {
 		return employeeRepository.findAllByEmploymentStatusNot(EmploymentStatus.EXITED).stream()
 				.map(mapper::toSummary)
 				.toList();
+	}
+
+	@Override
+	public List<EmployeeSummary> findCurrentEmployeesInDepartment(UUID departmentId) {
+		return employeeRepository.findAllByDepartmentIdAndEmploymentStatusNot(departmentId, EmploymentStatus.EXITED)
+				.stream().map(mapper::toSummary).toList();
+	}
+
+	@Override
+	public List<EmployeeSummary> findCurrentDirectReports(UUID managerId) {
+		return employeeRepository.findAllByReportingManagerIdAndEmploymentStatusNot(managerId, EmploymentStatus.EXITED)
+				.stream().map(mapper::toSummary).toList();
+	}
+
+	@Override
+	public Map<UUID, ZoneId> findLocationTimezones() {
+		return locationRepository.findAll().stream()
+				.collect(Collectors.toMap(Location::getId, location -> ZoneId.of(location.getTimezone())));
 	}
 
 	@Override

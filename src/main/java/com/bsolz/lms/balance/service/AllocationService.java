@@ -52,7 +52,10 @@ public class AllocationService {
 
 	private final TransactionTemplate transactionTemplate;
 
-	/** Allocates the period that covers the later of the employee's joining date and today. */
+	/**
+	 * Allocates the period that covers the later of the employee's joining date and today, and any open
+	 * period after it.
+	 */
 	@Transactional
 	public void allocateForNewEmployee(UUID employeeId) {
 		Optional<EmployeeSummary> found = organizationApi.findEmployee(employeeId);
@@ -68,7 +71,14 @@ public class AllocationService {
 					employeeId);
 			return;
 		}
-		allocate(employee, period.get(), trackedTypes(null), BalanceReferenceType.EMPLOYEE_JOINING, employeeId);
+		List<LeaveTypeInfo> types = trackedTypes(null);
+		allocate(employee, period.get(), types, BalanceReferenceType.EMPLOYEE_JOINING, employeeId);
+		// Periods already opened ahead of time (see BalanceMaintenanceService)
+		for (LeavePeriodInfo upcoming : policyApi.findOpenPeriods()) {
+			if (upcoming.startDate().isAfter(period.get().endDate())) {
+				allocate(employee, upcoming, types, BalanceReferenceType.EMPLOYEE_JOINING, employeeId);
+			}
+		}
 	}
 
 	/** Allocates the period to every current employee, one transaction per employee. */

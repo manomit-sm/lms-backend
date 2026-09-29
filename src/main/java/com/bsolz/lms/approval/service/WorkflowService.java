@@ -96,11 +96,18 @@ public class WorkflowService {
 			}
 		}
 		request.steps().forEach(this::validate);
+		if (request.autoApproveAfterHours() != null && request.escalateAfterHours() != null
+				&& request.autoApproveAfterHours() <= request.escalateAfterHours()) {
+			throw invalid("Automatic approval must come after escalation");
+		}
 
 		workflow.setName(request.name().trim());
 		workflow.setDescription(request.description());
 		workflow.setPriority(request.priority());
 		workflow.setActive(active);
+		workflow.setReminderAfterHours(request.reminderAfterHours());
+		workflow.setEscalateAfterHours(request.escalateAfterHours());
+		workflow.setAutoApproveAfterHours(request.autoApproveAfterHours());
 		workflow.getRules().clear();
 		workflow.getRules().addAll(rules);
 		workflow.getSteps().clear();

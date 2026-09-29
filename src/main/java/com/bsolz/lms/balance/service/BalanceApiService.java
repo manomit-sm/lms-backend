@@ -20,6 +20,8 @@ import com.bsolz.lms.leavepolicy.model.enums.LeavePeriodStatus;
 import com.bsolz.lms.organization.api.EmployeeSummary;
 import com.bsolz.lms.organization.api.OrganizationApi;
 import com.bsolz.lms.shared.exception.ApiException;
+import com.bsolz.lms.shared.security.CurrentUser;
+import com.bsolz.lms.shared.security.LmsPrincipal;
 import com.bsolz.lms.shared.tenancy.TenantContext;
 import com.bsolz.lms.shared.validation.HalfDaysValidator;
 import java.math.BigDecimal;
@@ -119,10 +121,10 @@ class BalanceApiService implements BalanceApi {
 					"Only " + balance.getAvailable() + " day(s) available to remove",
 					Map.of("available", balance.getAvailable(), "requested", amount.negate()));
 		}
-		ledger.post(balance, BalanceTransactionType.ADJUSTMENT, amount, BalanceReferenceType.MANUAL_ADJUSTMENT, null,
-				reason.trim());
-		events.publishEvent(new BalanceAdjusted(TenantContext.require().id(), employeeId, leaveTypeId, leavePeriodId,
-				amount, reason.trim()));
+		LeaveBalanceTransaction entry = ledger.post(balance, BalanceTransactionType.ADJUSTMENT, amount,
+				BalanceReferenceType.MANUAL_ADJUSTMENT, null, reason.trim());
+		events.publishEvent(new BalanceAdjusted(TenantContext.require().id(), entry.getId(), employeeId, leaveTypeId,
+				leavePeriodId, amount, reason.trim(), CurrentUser.find().map(LmsPrincipal::userId).orElse(null)));
 		return mapper.toSnapshot(balance);
 	}
 
