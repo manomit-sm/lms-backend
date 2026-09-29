@@ -5,9 +5,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.UUID;
 
-/** {@code available = allocated + carriedForward + adjusted - expired - used - pending}. */
+/** {@code available = allocated + carriedForward + adjusted - expired - carriedOut - used - pending}. */
 public record BalanceResponse(UUID id, UUID employeeId, LeaveTypeRef leaveType, LeavePeriodRef leavePeriod,
-		BigDecimal allocated, BigDecimal carriedForward, BigDecimal adjusted, BigDecimal expired, BigDecimal used,
+		BigDecimal allocated, BigDecimal carriedForward, BigDecimal adjusted, BigDecimal expired, BigDecimal carriedOut,
+		BigDecimal used,
 		BigDecimal pending, BigDecimal available, Instant updatedAt) {
 
 	public record LeaveTypeRef(UUID id, String code, String name, String color) {

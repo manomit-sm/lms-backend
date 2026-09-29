@@ -27,3 +27,13 @@ databaseChangeLog:
       file: db/changelog/changes/tenant/012-seed-approval-workflows.yaml
   - include:
       file: db/changelog/changes/tenant/013-leave.yaml
+  - include:
+      file: db/changelog/changes/tenant/014-balance-carry-out.yaml
+  - include:
+      file: db/changelog/changes/tenant/015-approval-deadlines.yaml
+  - include:
+      file: db/changelog/changes/tenant/016-notification.yaml
+  - include:
+      file: db/changelog/changes/tenant/017-activity-log.yaml
+  - include:
+      file: db/changelog/changes/tenant/018-leave-type-time-off.yaml

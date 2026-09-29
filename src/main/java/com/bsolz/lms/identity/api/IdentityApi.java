@@ -2,6 +2,7 @@ package com.bsolz.lms.identity.api;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -26,5 +27,11 @@ public interface IdentityApi {
 	boolean roleExists(String roleCode);
 
 	List<UserSummary> findUsers(Collection<UUID> userIds);
+
+	/**
+	 * How to show each user to other people: their employee's full name, else their email. Unknown
+	 * ids are absent from the result.
+	 */
+	Map<UUID, String> findDisplayNames(Collection<UUID> userIds);
 
 }

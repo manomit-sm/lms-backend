@@ -18,6 +18,15 @@ public interface ApprovalTaskRepository extends JpaRepository<ApprovalTask, UUID
 			""")
 	List<ApprovalTask> findAssignedWithStatus(@Param("userId") UUID userId, @Param("status") ApprovalTaskStatus status);
 
+	@Query("""
+			select t.id from ApprovalTask t join t.approvalRequest r
+			where t.status = com.bsolz.lms.approval.model.enums.ApprovalTaskStatus.PENDING
+			  and (r.reminderAfterHours is not null or r.escalateAfterHours is not null
+			       or r.autoApproveAfterHours is not null)
+			order by t.activatedAt
+			""")
+	List<UUID> findPendingIdsWithDeadlines();
+
 	@Query("select t.approvalRequest.id from ApprovalTask t where t.id = :taskId")
 	Optional<UUID> findApprovalIdByTaskId(@Param("taskId") UUID taskId);
 

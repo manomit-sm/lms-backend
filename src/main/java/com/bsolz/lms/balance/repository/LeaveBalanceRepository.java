@@ -40,4 +40,10 @@ public interface LeaveBalanceRepository extends JpaRepository<LeaveBalance, UUID
 
 	List<LeaveBalance> findAllByEmployeeIdAndLeavePeriodId(UUID employeeId, UUID leavePeriodId);
 
+	@Query("select b.id from LeaveBalance b where b.leavePeriodId = :leavePeriodId order by b.id")
+	List<UUID> findIdsByLeavePeriodId(@Param("leavePeriodId") UUID leavePeriodId);
+
+	@Query("select b.id from LeaveBalance b where b.leavePeriodId = :leavePeriodId and b.carriedForward > 0 order by b.id")
+	List<UUID> findIdsWithCarriedForward(@Param("leavePeriodId") UUID leavePeriodId);
+
 }

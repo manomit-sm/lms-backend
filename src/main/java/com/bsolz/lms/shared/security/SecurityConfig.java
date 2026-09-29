@@ -3,6 +3,7 @@ package com.bsolz.lms.shared.security;
 import com.bsolz.lms.shared.exception.ProblemDetailResponseWriter;
 import com.bsolz.lms.shared.security.local.LocalTokenIssuer;
 import com.bsolz.lms.shared.tenancy.TenantRegistry;
+import jakarta.servlet.DispatcherType;
 import java.util.List;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -69,7 +70,10 @@ class SecurityConfig {
 		JwtDecoder decoder = jwtDecoder(properties.tenant(), LmsJwtValidators.forTenant(properties.tenant()),
 				localIssuer);
 		http.securityMatcher("/api/**")
-				.authorizeHttpRequests(authorize -> authorize.anyRequest().authenticated())
+				// An async dispatch (e.g. a server-sent event stream completing) continues a request that was
+				// authenticated and authorized when it started.
+				.authorizeHttpRequests(authorize -> authorize.dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
+						.anyRequest().authenticated())
 				.oauth2ResourceServer(resourceServer -> resourceServer
 						.jwt(jwt -> jwt.decoder(decoder)
 								.jwtAuthenticationConverter(token -> new JwtAuthenticationToken(token, List.of(), token.getSubject())))

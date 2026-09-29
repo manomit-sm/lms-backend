@@ -28,6 +28,10 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID>, JpaSp
 
 	List<Employee> findAllByEmploymentStatusNot(EmploymentStatus status);
 
+	List<Employee> findAllByDepartmentIdAndEmploymentStatusNot(UUID departmentId, EmploymentStatus status);
+
+	List<Employee> findAllByReportingManagerIdAndEmploymentStatusNot(UUID managerId, EmploymentStatus status);
+
 	boolean existsByEmployeeCodeIgnoreCase(String employeeCode);
 
 	boolean existsByEmployeeCodeIgnoreCaseAndIdNot(String employeeCode, UUID id);

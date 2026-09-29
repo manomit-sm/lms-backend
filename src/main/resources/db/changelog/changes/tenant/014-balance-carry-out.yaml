@@ -1,0 +1,16 @@
+databaseChangeLog:
+  - changeSet:
+      id: 014-balance-carry-out
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/tenant/014-balance-carry-out.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false
+      rollback:
+        - sqlFile:
+            path: db/changelog/sql/tenant/014-balance-carry-out-rollback.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

@@ -2,6 +2,7 @@ package com.bsolz.lms.organization.api;
 
 import com.bsolz.lms.organization.model.enums.OrgUnitType;
 import java.time.DayOfWeek;
+import java.time.ZoneId;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,12 @@ public interface OrganizationApi {
 	/** Every employee who has not exited. */
 	List<EmployeeSummary> findCurrentEmployees();
 
+	/** Employees of the department who have not exited. */
+	List<EmployeeSummary> findCurrentEmployeesInDepartment(UUID departmentId);
+
+	/** The manager's direct reports who have not exited. */
+	List<EmployeeSummary> findCurrentDirectReports(UUID managerId);
+
 	/** Everyone reporting to the manager, directly or indirectly (the manager excluded). */
 	Set<UUID> findReportingLine(UUID managerId);
 
@@ -33,6 +40,9 @@ public interface OrganizationApi {
 	 * tenant's default. Empty for an unknown employee.
 	 */
 	Set<DayOfWeek> findWorkingDays(UUID employeeId);
+
+	/** Each location's timezone, by location id. */
+	Map<UUID, ZoneId> findLocationTimezones();
 
 	/** Which of the given ids exist as units of that type. */
 	Set<UUID> findExistingUnitIds(OrgUnitType type, Collection<UUID> ids);

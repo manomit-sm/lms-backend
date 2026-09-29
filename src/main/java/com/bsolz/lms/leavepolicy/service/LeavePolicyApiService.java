@@ -8,6 +8,7 @@ import com.bsolz.lms.leavepolicy.domain.PolicyMatcher;
 import com.bsolz.lms.leavepolicy.entity.LeavePolicy;
 import com.bsolz.lms.leavepolicy.entity.LeaveType;
 import com.bsolz.lms.leavepolicy.mapper.LeavePolicyMapper;
+import com.bsolz.lms.leavepolicy.model.enums.LeavePeriodStatus;
 import com.bsolz.lms.leavepolicy.repository.LeavePeriodRepository;
 import com.bsolz.lms.leavepolicy.repository.LeavePolicyRepository;
 import com.bsolz.lms.leavepolicy.repository.LeaveTypeRepository;
@@ -32,6 +33,8 @@ class LeavePolicyApiService implements LeavePolicyApi {
 
 	private final LeavePolicyRepository policyRepository;
 
+	private final LeavePeriodService periodService;
+
 	private final LeavePolicyMapper mapper;
 
 	@Override
@@ -52,6 +55,26 @@ class LeavePolicyApiService implements LeavePolicyApi {
 	@Override
 	public Optional<LeavePeriodInfo> findPeriodContaining(LocalDate date) {
 		return periodRepository.findContaining(date).map(mapper::toInfo);
+	}
+
+	@Override
+	public List<LeavePeriodInfo> findOpenPeriods() {
+		return periodRepository.findAllByStatusOrderByStartDateAsc(LeavePeriodStatus.OPEN).stream()
+				.map(mapper::toInfo)
+				.toList();
+	}
+
+	@Override
+	@Transactional
+	public LeavePeriodInfo openPeriodContaining(LocalDate date) {
+		return mapper.toInfo(periodService.openContaining(date));
+	}
+
+	@Override
+	@Transactional
+	public void closePeriod(UUID leavePeriodId) {
+		periodRepository.findById(leavePeriodId).orElseThrow(() -> new IllegalArgumentException(
+				"Unknown leave period " + leavePeriodId)).setStatus(LeavePeriodStatus.CLOSED);
 	}
 
 	@Override

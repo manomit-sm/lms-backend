@@ -50,6 +50,21 @@ lms:
     s3:
       bucket: ${LMS_S3_BUCKET}
       region: ${AWS_REGION}
+  notification:
+    stream:
+      # Server-sent event streams: clients reconnect after the timeout; the heartbeat keeps idle streams
+      # open through load balancers (ALB idle timeout: 60s)
+      timeout: 30m
+      heartbeat: 25s
+      max-per-user: 5
+  jobs:
+    # Cron expressions in UTC; "-" disables a job. Each job runs on one instance at a time (ShedLock)
+    # and once per serving tenant.
+    balance-maintenance: "0 15 */6 * * *"
+    approval-deadlines: "0 */15 * * * *"
+    upcoming-leave-notifications: "0 5 * * * *"
+    event-resubmission: "0 */5 * * * *"
+    event-publication-cleanup: "0 45 3 * * *"
   security:
     # Cognito user pools (issuer = https://cognito-idp.<region>.amazonaws.com/<userPoolId>)
     tenant:

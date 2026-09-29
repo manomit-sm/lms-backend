@@ -35,6 +35,15 @@ public class ApprovalWorkflow extends BaseEntity {
 
 	private boolean active = true;
 
+	/** Hours after a step becomes current to remind its approvers, and every as many hours again; null: never. */
+	private Integer reminderAfterHours;
+
+	/** Hours after a step becomes current to escalate it once; null: never. */
+	private Integer escalateAfterHours;
+
+	/** Hours after a step becomes current to approve it automatically; null: never. */
+	private Integer autoApproveAfterHours;
+
 	@ElementCollection
 	@CollectionTable(name = "approval_workflow_rule", joinColumns = @JoinColumn(name = "approval_workflow_id"))
 	private List<WorkflowRule> rules = new ArrayList<>();

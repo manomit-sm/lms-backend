@@ -8,7 +8,8 @@ import java.util.UUID;
  * inside the approving transaction too, so the subject's owner can update it atomically.
  *
  * @param approvedByUserId who approved the last step; null when the approval completed automatically
+ * @param note why it completed automatically; null otherwise
  */
 public record ApprovalCompleted(UUID tenantId, UUID approvalId, ApprovalSubjectType subjectType, UUID subjectId,
-		UUID approvedByUserId) {
+		UUID approvedByUserId, String note) {
 }

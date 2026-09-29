@@ -2,6 +2,10 @@ package com.bsolz.lms.organization.api;
 
 import java.util.UUID;
 
-/** Published when an employee is created; identity invites them as a user. */
-public record EmployeeCreated(UUID tenantId, UUID employeeId, String email) {
+/**
+ * Published when an employee is created; identity invites them as a user.
+ *
+ * @param actorUserId who created them; null when not done by a user
+ */
+public record EmployeeCreated(UUID tenantId, UUID employeeId, String email, UUID actorUserId) {
 }

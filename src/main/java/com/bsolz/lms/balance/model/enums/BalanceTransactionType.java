@@ -15,8 +15,11 @@ public enum BalanceTransactionType {
 	/** adjusted += amount (signed) */
 	ADJUSTMENT,
 
-	/** expired += amount */
+	/** expired += amount (unused days lapsing at year end, or carried-forward days expiring) */
 	EXPIRY,
+
+	/** carriedOut += amount (days moved to the next period at year end) */
+	CARRY_OUT,
 
 	/** pending += amount */
 	HOLD,

@@ -20,8 +20,9 @@ class ApprovalOutcomeListener {
 	@EventListener
 	void on(ApprovalCompleted event) {
 		switch (event.subjectType()) {
-			case LEAVE_REQUEST -> service.approved(event.subjectId(), event.approvedByUserId());
-			case LEAVE_CANCELLATION -> service.cancellationApproved(event.subjectId(), event.approvedByUserId());
+			case LEAVE_REQUEST -> service.approved(event.subjectId(), event.approvedByUserId(), event.note());
+			case LEAVE_CANCELLATION -> service.cancellationApproved(event.subjectId(), event.approvedByUserId(),
+					event.note());
 		}
 	}
 

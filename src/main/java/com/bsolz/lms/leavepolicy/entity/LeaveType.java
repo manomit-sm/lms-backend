@@ -27,6 +27,9 @@ public class LeaveType extends BaseEntity {
 
 	private boolean balanceTracked;
 
+	/** Whether taking it means being away from work; false for e.g. work from home. */
+	private boolean timeOff = true;
+
 	private boolean halfDayAllowed;
 
 	private boolean active = true;

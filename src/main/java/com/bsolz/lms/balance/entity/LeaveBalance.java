@@ -35,12 +35,15 @@ public class LeaveBalance extends BaseEntity {
 
 	private BigDecimal expired;
 
+	private BigDecimal carriedOut;
+
 	private BigDecimal used;
 
 	private BigDecimal pending;
 
 	public BigDecimal getAvailable() {
-		return allocated.add(carriedForward).add(adjusted).subtract(expired).subtract(used).subtract(pending);
+		return allocated.add(carriedForward).add(adjusted).subtract(expired).subtract(carriedOut).subtract(used)
+				.subtract(pending);
 	}
 
 	public void apply(BalanceTransactionType type, BigDecimal amount) {
@@ -49,6 +52,7 @@ public class LeaveBalance extends BaseEntity {
 			case CARRY_FORWARD -> carriedForward = carriedForward.add(amount);
 			case ADJUSTMENT -> adjusted = adjusted.add(amount);
 			case EXPIRY -> expired = expired.add(amount);
+			case CARRY_OUT -> carriedOut = carriedOut.add(amount);
 			case HOLD -> pending = pending.add(amount);
 			case RELEASE -> pending = pending.subtract(amount);
 			case CONSUME -> {
