@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 011-approval
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/tenant/011-approval.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

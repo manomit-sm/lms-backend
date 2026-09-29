@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 008-seed-leave-types-policies
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/tenant/008-seed-leave-types-policies.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

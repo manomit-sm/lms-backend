@@ -51,6 +51,11 @@
 			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
 			<version>${springdoc.version}</version>
 		</dependency>
+		<!-- CSV import (holidays); version managed by the Jackson BOM -->
+		<dependency>
+			<groupId>tools.jackson.dataformat</groupId>
+			<artifactId>jackson-dataformat-csv</artifactId>
+		</dependency>
 
 		<!-- Security: Cognito-issued JWTs, backend is a plain OAuth2 resource server -->
 		<dependency>

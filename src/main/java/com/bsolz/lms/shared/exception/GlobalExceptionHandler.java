@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
@@ -31,7 +32,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
 	@ExceptionHandler(ApiException.class)
 	ResponseEntity<ProblemDetail> handleApiException(ApiException ex) {
-		return problem(ex.getErrorCode(), ex.getMessage());
+		ProblemDetail problem = ProblemDetails.of(ex.getErrorCode(), ex.getMessage());
+		ex.getProperties().forEach(problem::setProperty);
+		return ResponseEntity.status(problem.getStatus()).body(problem);
 	}
 
 	@ExceptionHandler(AccessDeniedException.class)
@@ -51,6 +54,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 				.map(violation -> fieldError(violation.getPropertyPath().toString(), violation.getMessage()))
 				.toList());
 		return ResponseEntity.status(problem.getStatus()).body(problem);
+	}
+
+	@ExceptionHandler(OptimisticLockingFailureException.class)
+	ResponseEntity<ProblemDetail> handleOptimisticLocking(OptimisticLockingFailureException ex) {
+		return problem(CommonErrorCode.CONCURRENT_UPDATE, "Someone else changed this at the same time; reload and try again");
 	}
 
 	@ExceptionHandler(PropertyReferenceException.class)

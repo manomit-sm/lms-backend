@@ -1,0 +1,10 @@
+databaseChangeLog:
+  - changeSet:
+      id: 010-balance
+      author: lms
+      changes:
+        - sqlFile:
+            path: db/changelog/sql/tenant/010-balance.sql
+            relativeToChangelogFile: false
+            splitStatements: false
+            stripComments: false

@@ -26,6 +26,8 @@ public interface EmployeeRepository extends JpaRepository<Employee, UUID>, JpaSp
 	@EntityGraph(attributePaths = { "department", "designation", "location", "reportingManager" })
 	List<Employee> findAllByReportingManagerIdOrderByFirstNameAscLastNameAsc(UUID managerId);
 
+	List<Employee> findAllByEmploymentStatusNot(EmploymentStatus status);
+
 	boolean existsByEmployeeCodeIgnoreCase(String employeeCode);
 
 	boolean existsByEmployeeCodeIgnoreCaseAndIdNot(String employeeCode, UUID id);

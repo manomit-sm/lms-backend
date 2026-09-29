@@ -2,6 +2,7 @@ package com.bsolz.lms.identity.repository;
 
 import com.bsolz.lms.identity.entity.AppUser;
 import com.bsolz.lms.identity.model.enums.UserStatus;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
@@ -35,5 +36,12 @@ public interface AppUserRepository extends JpaRepository<AppUser, UUID>, JpaSpec
 	long countWithRoleAndStatusNot(@Param("roleCode") String roleCode, @Param("excluded") UserStatus excluded);
 
 	boolean existsByRolesId(UUID roleId);
+
+	@Query("select u.id from AppUser u where u.employeeId = :employeeId and u.status <> :excluded")
+	Optional<UUID> findIdByEmployeeIdAndStatusNot(@Param("employeeId") UUID employeeId,
+			@Param("excluded") UserStatus excluded);
+
+	@Query("select distinct u.id from AppUser u join u.roles r where r.code = :roleCode and u.status <> :excluded")
+	List<UUID> findIdsWithRoleAndStatusNot(@Param("roleCode") String roleCode, @Param("excluded") UserStatus excluded);
 
 }

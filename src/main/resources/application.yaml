@@ -43,6 +43,13 @@ lms:
     cognito:
       user-pool-id: ${LMS_COGNITO_TENANT_USER_POOL_ID}
       region: ${AWS_REGION}
+  storage:
+    # Leave attachments: clients upload/download directly with presigned URLs
+    provider: s3
+    presign-ttl: 10m
+    s3:
+      bucket: ${LMS_S3_BUCKET}
+      region: ${AWS_REGION}
   security:
     # Cognito user pools (issuer = https://cognito-idp.<region>.amazonaws.com/<userPoolId>)
     tenant:
