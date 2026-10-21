@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -69,6 +70,7 @@ class LeaveRequestController {
 	PageResponse<LeaveRequestSummary> list(@RequestParam(required = false) UUID employeeId,
 			@RequestParam(required = false) LeaveStatus status, @RequestParam(required = false) UUID leaveTypeId,
 			@RequestParam(required = false) LocalDate from, @RequestParam(required = false) LocalDate to,
+			@ParameterObject
 			@PageableDefault(size = 20, sort = "startDate", direction = Sort.Direction.DESC) Pageable pageable) {
 		return PageResponse.from(queryService.list(new LeaveFilter(employeeId, status, leaveTypeId, from, to), pageable));
 	}

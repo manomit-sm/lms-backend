@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -34,7 +35,7 @@ class AuditController {
 			@RequestParam(required = false) LocalDate to, @RequestParam(required = false) UUID actorUserId,
 			@RequestParam(required = false) UUID employeeId, @RequestParam(required = false) AuditAction action,
 			@RequestParam(required = false) AuditEntityType entityType, @RequestParam(required = false) UUID entityId,
-			@PageableDefault(size = 50) Pageable pageable) {
+			@ParameterObject @PageableDefault(size = 50) Pageable pageable) {
 		return PageResponse.from(service.search(
 				new AuditLogFilter(from, to, actorUserId, employeeId, action, entityType, entityId), pageable));
 	}

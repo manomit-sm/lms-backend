@@ -14,6 +14,7 @@ import com.bsolz.lms.shared.web.PageResponse;
 import java.time.LocalDate;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -49,7 +50,8 @@ class ReportController {
 	PageResponse<LeaveHistoryRow> employeeLeaveHistory(@RequestParam(required = false) LocalDate from,
 			@RequestParam(required = false) LocalDate to, @RequestParam(required = false) UUID employeeId,
 			@RequestParam(required = false) UUID departmentId, @RequestParam(required = false) UUID leaveTypeId,
-			@RequestParam(required = false) LeaveStatus status, @PageableDefault(size = 20) Pageable pageable) {
+			@RequestParam(required = false) LeaveStatus status,
+			@ParameterObject @PageableDefault(size = 20) Pageable pageable) {
 		ReportScope scope = service.currentScope();
 		return service.leaveHistory(scope,
 				criteria(scope, from, to, employeeId, departmentId, leaveTypeId, null, status), unsorted(pageable));
@@ -81,7 +83,8 @@ class ReportController {
 	@GetMapping("/balances")
 	PageResponse<BalanceRow> balances(@RequestParam(required = false) UUID leavePeriodId,
 			@RequestParam(required = false) UUID employeeId, @RequestParam(required = false) UUID departmentId,
-			@RequestParam(required = false) UUID leaveTypeId, @PageableDefault(size = 50) Pageable pageable) {
+			@RequestParam(required = false) UUID leaveTypeId,
+			@ParameterObject @PageableDefault(size = 50) Pageable pageable) {
 		ReportScope scope = service.currentScope();
 		return service.balances(scope,
 				criteria(scope, null, null, employeeId, departmentId, leaveTypeId, leavePeriodId, null),

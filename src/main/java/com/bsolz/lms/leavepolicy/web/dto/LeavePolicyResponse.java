@@ -15,7 +15,7 @@ public record LeavePolicyResponse(UUID id, LeaveTypeRef leaveType, String name, 
 		BigDecimal attachmentRequiredAfterDays, boolean allowedDuringProbation, boolean sandwichRule, boolean active,
 		List<PolicyRule> appliesTo, Instant createdAt, Instant updatedAt) {
 
-	public record LeaveTypeRef(UUID id, String code, String name) {
+	public record LeaveTypeRef(UUID id, String code, String name, String color) {
 	}
 
 }

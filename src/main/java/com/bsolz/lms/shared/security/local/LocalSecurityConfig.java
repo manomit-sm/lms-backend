@@ -9,7 +9,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
-/** Opens {@code /local/tokens/**} - only when the local issuer is enabled. */
+/** Opens {@code /local/**} (tokens and the sign-in directory) - only when the local issuer is enabled. */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnBooleanProperty("lms.security.local-issuer.enabled")
 class LocalSecurityConfig {
@@ -17,7 +17,7 @@ class LocalSecurityConfig {
 	@Bean
 	@Order(0)
 	SecurityFilterChain localTokenSecurityFilterChain(HttpSecurity http) throws Exception {
-		return http.securityMatcher("/local/tokens/**")
+		return http.securityMatcher("/local/**")
 				.authorizeHttpRequests(authorize -> authorize.anyRequest().permitAll())
 				.csrf(AbstractHttpConfigurer::disable)
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

@@ -41,7 +41,7 @@ class StorageConfig {
 
 		@Bean
 		InMemoryFileStorage fileStorage(StorageProperties properties, Clock clock) {
-			return new InMemoryFileStorage(properties.presignTtl(), clock);
+			return new InMemoryFileStorage(properties.fake().baseUrl(), properties.presignTtl(), clock);
 		}
 
 	}

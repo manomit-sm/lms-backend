@@ -11,6 +11,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.bsolz.lms.support.IntegrationTest;
 import com.bsolz.lms.support.TestFixtures;
 import com.bsolz.lms.support.TestTenant;
+import com.tngtech.archunit.core.domain.JavaClass;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
+import com.tngtech.archunit.core.importer.ImportOption;
+import java.lang.reflect.RecordComponent;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -102,6 +110,11 @@ class ApiContractTests {
 						"EXPORT_NOT_FOUND");
 		assertThat(tenantApi.get("paths").get("/api/v1/leave-requests").get("post").get("responses").has("409"))
 				.isTrue();
+		JsonNode activityDetails = tenantApi.get("components").get("schemas").get("ActivityResponse").get("properties")
+				.get("details");
+		assertThat(activityDetails.get("type").asString()).isEqualTo("object");
+		assertThat(activityDetails.get("additionalProperties").asBoolean()).isTrue();
+		assertThat(tenantApi.get("components").get("schemas").has("JsonNode")).isFalse();
 
 		mockMvc.perform(get("/v3/api-docs/platform"))
 				.andExpect(status().isOk())
@@ -110,6 +123,54 @@ class ApiContractTests {
 		mockMvc.perform(get("/actuator/health/readiness")).andExpect(status().isOk())
 				.andExpect(jsonPath("$.status").value("UP"));
 		mockMvc.perform(get("/actuator/health/liveness")).andExpect(status().isOk());
+	}
+
+	/** Generated clients send what the document says: {@code ?page=&size=&sort=}, not a {@code pageable} object. */
+	@Test
+	void pagedEndpointsDocumentPageSizeAndSort() throws Exception {
+		for (String group : new String[] { "tenant", "platform" }) {
+			JsonNode paths = jsonMapper.readTree(mockMvc.perform(get("/v3/api-docs/" + group))
+					.andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("paths");
+			paths.forEachEntry((path, operations) -> operations.forEachEntry((method, operation) -> {
+				if (operation.has("parameters")) {
+					assertThat(operation.get("parameters").valueStream().map(parameter -> parameter.get("name").asString()))
+							.as(method + " " + path).doesNotContain("pageable");
+				}
+			}));
+		}
+		JsonNode employees = jsonMapper.readTree(mockMvc.perform(get("/v3/api-docs/tenant"))
+				.andReturn().getResponse().getContentAsString()).get("paths").get("/api/v1/employees").get("get");
+		assertThat(employees.get("parameters").valueStream().map(parameter -> parameter.get("name").asString()))
+				.contains("page", "size", "sort");
+	}
+
+	/**
+	 * The OpenAPI document names schemas by simple class name, so two DTO records with the same name but
+	 * different components would silently share one schema - and the generated client would miss fields.
+	 */
+	@Test
+	void dtoRecordsWithTheSameNameHaveTheSameShape() {
+		Map<String, List<Class<?>>> bySimpleName = new ClassFileImporter()
+				.withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+				.importPackages("com.bsolz.lms").stream()
+				.filter(javaClass -> javaClass.getPackageName().contains(".web.dto"))
+				.map(JavaClass::reflect)
+				.filter(Class::isRecord)
+				.collect(Collectors.groupingBy(Class::getSimpleName));
+		bySimpleName.forEach((name, records) -> assertThat(records.stream().map(ApiContractTests::shape).distinct())
+				.as("records named %s: %s", name, records)
+				.hasSize(1));
+	}
+
+	private static String shape(Class<?> record) {
+		return Arrays.stream(record.getRecordComponents())
+				.map(component -> component.getName() + ":" + simpleType(component))
+				.collect(Collectors.joining(","));
+	}
+
+	/** Nested types by simple name too, as the schema refers to them. */
+	private static String simpleType(RecordComponent component) {
+		return component.getGenericType().getTypeName().replaceAll("[\\w.]+[.$]", "");
 	}
 
 }
