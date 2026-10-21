@@ -24,12 +24,14 @@ import java.util.Map;
 import java.util.TreeMap;
 import org.springdoc.core.customizers.GlobalOpenApiCustomizer;
 import org.springdoc.core.models.GroupedOpenApi;
+import org.springdoc.core.utils.SpringDocUtils;
 import org.springframework.beans.factory.config.BeanDefinition;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.type.filter.AssignableTypeFilter;
 import org.springframework.util.ClassUtils;
+import tools.jackson.databind.JsonNode;
 
 /**
  * The OpenAPI document - the frontend's contract. Two groups: the tenant API ({@code /api/**}, tokens
@@ -45,6 +47,11 @@ class OpenApiConfig {
 	static final String PROBLEM = "ProblemDetail";
 
 	private static final String BASE_PACKAGE = "com.bsolz.lms";
+
+	static {
+		// Free-form JSON (e.g. activity details) is any JSON object, not a JsonNode bean with its getters
+		SpringDocUtils.getConfig().replaceWithSchema(JsonNode.class, new ObjectSchema().additionalProperties(true));
+	}
 
 	private static final Map<String, String> ERROR_RESPONSES = Map.of(
 			"400", "Invalid request: `VALIDATION_FAILED` lists the fields in `errors`",

@@ -12,6 +12,7 @@ import java.net.URI;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -42,6 +43,7 @@ class PlatformTenantController {
 
 	@GetMapping
 	PageResponse<TenantResponse> list(
+			@ParameterObject
 			@PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
 		return PageResponse.from(provisioningService.list(pageable).map(tenantMapper::toResponse));
 	}

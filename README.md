@@ -91,10 +91,12 @@ On startup the application migrates the `public` schema and every tenant schema,
 
 The `local` profile:
 
-- issues its own signed tokens (`/local/tokens/**`) instead of using Cognito;
+- issues its own signed tokens (`/local/tokens/**`) instead of using Cognito, and lists the tenants and
+  users you can sign in as (`/local/directory/**`);
 - uses an in-memory identity provider: invited users are only logged, with their token subject;
-- uses in-memory file storage: presigned upload/download URLs point nowhere and every presigned upload
-  counts as done;
+- uses in-memory file storage: presigned upload and download URLs point at `/local/storage/**`, which
+  keeps uploaded files in memory (so a browser can really attach and download files), and every
+  presigned upload counts as done;
 - allows the frontend dev servers `http://localhost:5173` and `http://localhost:3000` (CORS).
 
 ### 3. Get tokens and call the API
@@ -119,17 +121,16 @@ leave types, default policies, approval workflows and the current leave period, 
 `admin@acme.test` as tenant admin.
 
 **Sign in as a tenant user.** A tenant token needs the user's subject (their identity-provider id) and
-the tenant id. The in-memory identity provider logs every invited user's subject:
+the tenant id. The local directory lists both (local profile only, no token needed):
 
-```
-Fake identity provider: invited admin@acme.test (sub=f0fcf463-d075-455e-bdbe-21ba2b69d892)
+```bash
+curl -s localhost:8080/local/directory/tenants                     # [{"id": ..., "key": "acme"}]
+curl -s localhost:8080/local/directory/tenants/<tenant id>/users   # email, subject, status, roles
 ```
 
-The subject is also stored in the tenant schema:
-
-```sql
-SELECT email, idp_subject FROM tenant_acme.app_user;
-```
+The in-memory identity provider also logs every invited user's subject
+(`Fake identity provider: invited admin@acme.test (sub=...)`), and it is stored in
+`tenant_<key>.app_user.idp_subject`.
 
 ```bash
 TOKEN=$(curl -s -X POST localhost:8080/local/tokens/tenant \
@@ -140,8 +141,8 @@ curl -s localhost:8080/api/v1/auth/me -H "Authorization: Bearer $TOKEN"
 ```
 
 `/api/v1/auth/me` returns the user, their roles and permissions, which is what the frontend uses to
-decide what to show. Employees created through `POST /api/v1/employees` are invited the same way: take
-their subject from the log or `app_user` to sign in as them.
+decide what to show. Employees created through `POST /api/v1/employees` are invited the same way and
+appear in the local directory. The frontend's local sign-in screens use the same endpoints.
 
 A typical first session as the tenant admin: create departments and employees (with reporting
 managers), grant roles (`PUT /api/v1/users/{id}/roles`: `MANAGER`, `HR_ADMIN`), then sign in as an

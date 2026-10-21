@@ -6,8 +6,11 @@ lms:
     # In-memory identity provider: subjects are logged and stored on app_user.idp_subject
     provider: fake
   storage:
-    # In-memory storage: presigned URLs point nowhere and every presigned upload counts as done
+    # In-memory storage: every presigned upload counts as done; files PUT to the presigned URLs are kept
     provider: fake
+    fake:
+      # Served by LocalStorageController, through the frontends' dev proxy
+      base-url: /local/storage/
   cors:
     # Vite / Next.js dev servers
     allowed-origins: http://localhost:5173,http://localhost:3000

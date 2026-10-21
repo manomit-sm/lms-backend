@@ -12,6 +12,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -45,7 +46,7 @@ class BalanceController {
 
 	@GetMapping("/{balanceId}/transactions")
 	PageResponse<BalanceTransactionResponse> transactions(@PathVariable UUID balanceId,
-			@PageableDefault(size = 50) Pageable pageable) {
+			@ParameterObject @PageableDefault(size = 50) Pageable pageable) {
 		return PageResponse.from(queryService.transactions(balanceId, pageable));
 	}
 

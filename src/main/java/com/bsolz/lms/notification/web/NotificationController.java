@@ -7,6 +7,7 @@ import com.bsolz.lms.notification.web.dto.UnreadCountResponse;
 import com.bsolz.lms.shared.web.PageResponse;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -31,7 +32,7 @@ class NotificationController {
 	/** Newest first. */
 	@GetMapping
 	PageResponse<NotificationResponse> list(@RequestParam(defaultValue = "false") boolean unreadOnly,
-			@PageableDefault(size = 20) Pageable pageable) {
+			@ParameterObject @PageableDefault(size = 20) Pageable pageable) {
 		return service.list(unreadOnly, PageRequest.of(pageable.getPageNumber(), pageable.getPageSize()));
 	}
 

@@ -12,6 +12,7 @@ import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
@@ -40,7 +41,7 @@ class EmployeeController {
 	PageResponse<EmployeeResponse> list(@RequestParam(required = false) String search,
 			@RequestParam(required = false) UUID departmentId, @RequestParam(required = false) UUID reportingManagerId,
 			@RequestParam(required = false) EmploymentStatus status,
-			@PageableDefault(size = 20, sort = { "firstName", "lastName" }) Pageable pageable) {
+			@ParameterObject @PageableDefault(size = 20, sort = { "firstName", "lastName" }) Pageable pageable) {
 		EmployeeFilter filter = new EmployeeFilter(search, departmentId, reportingManagerId, status);
 		return PageResponse.from(employeeService.list(filter, pageable));
 	}

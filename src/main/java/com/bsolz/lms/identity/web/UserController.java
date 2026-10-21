@@ -10,6 +10,7 @@ import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.ResponseEntity;
@@ -34,7 +35,7 @@ class UserController {
 	@GetMapping
 	PageResponse<UserResponse> list(@RequestParam(required = false) String search,
 			@RequestParam(required = false) UserStatus status,
-			@PageableDefault(size = 20, sort = "email") Pageable pageable) {
+			@ParameterObject @PageableDefault(size = 20, sort = "email") Pageable pageable) {
 		return PageResponse.from(userAdminService.list(search, status, pageable));
 	}
 
