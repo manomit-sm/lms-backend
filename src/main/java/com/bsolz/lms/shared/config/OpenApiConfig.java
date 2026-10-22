@@ -117,6 +117,7 @@ class OpenApiConfig {
 		Schema<String> errorCode = new StringSchema().description("Stable, machine-readable error code");
 		errorCode.setEnum(codes.stream().map(code -> (String) code.get("code")).toList());
 		Schema fieldError = new ObjectSchema().addProperty("field", new StringSchema())
+				.addProperty("row", new IntegerSchema().description("For imports: the file's row (1 is the header)"))
 				.addProperty("message", new StringSchema());
 		Schema violation = new ObjectSchema().addProperty("code", new StringSchema())
 				.addProperty("message", new StringSchema());
@@ -128,7 +129,8 @@ class OpenApiConfig {
 				.addProperty("detail", new StringSchema().description("Human-readable; safe to show to the user"))
 				.addProperty("instance", new StringSchema())
 				.addProperty("errorCode", errorCode)
-				.addProperty("errors", new ArraySchema().items(fieldError).description("For VALIDATION_FAILED"))
+				.addProperty("errors", new ArraySchema().items(fieldError)
+						.description("For VALIDATION_FAILED (by field) and invalid imports (by row)"))
 				.addProperty("violations", new ArraySchema().items(violation)
 						.description("For leave rule violations: every rule the request breaks"));
 		problem.addExtension("x-error-codes", codes);

@@ -9,10 +9,12 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ApprovalWorkflowRepository extends JpaRepository<ApprovalWorkflow, UUID> {
 
-	@EntityGraph(attributePaths = { "rules", "steps" })
+	// Only the steps are fetched with the workflow: joining the rules too would repeat each rule once per
+	// step, as rules are an unordered bag. They load in a batch when first read (see ApprovalWorkflow).
+	@EntityGraph(attributePaths = "steps")
 	List<ApprovalWorkflow> findAllByOrderByPriorityAsc();
 
-	@EntityGraph(attributePaths = { "rules", "steps" })
+	@EntityGraph(attributePaths = "steps")
 	Optional<ApprovalWorkflow> findWithDetailsById(UUID id);
 
 	boolean existsByNameIgnoreCase(String name);

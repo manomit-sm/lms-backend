@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.BatchSize;
 import org.hibernate.annotations.ListIndexBase;
 
 /**
@@ -46,6 +47,7 @@ public class ApprovalWorkflow extends BaseEntity {
 
 	@ElementCollection
 	@CollectionTable(name = "approval_workflow_rule", joinColumns = @JoinColumn(name = "approval_workflow_id"))
+	@BatchSize(size = 50)
 	private List<WorkflowRule> rules = new ArrayList<>();
 
 	@ElementCollection

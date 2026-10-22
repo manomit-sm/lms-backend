@@ -65,6 +65,8 @@ class ApprovalWorkflowApiTests {
 		mockMvc.perform(get("/api/v1/approval-workflows").header("Authorization", admin))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$[*].name", contains("Long leave", "Standard")))
+				// One rule, though fetched with two steps
+				.andExpect(jsonPath("$[0].rules.length()").value(1))
 				.andExpect(jsonPath("$[0].rules[0].minDays").value(5.0))
 				.andExpect(jsonPath("$[0].steps[*].approverType", contains("REPORTING_MANAGER", "ROLE")))
 				.andExpect(jsonPath("$[0].steps[1].roleCode").value("HR_ADMIN"))
