@@ -108,6 +108,9 @@ class ApiContractTests {
 		assertThat(problem.get("properties").get("errorCode").get("enum").valueStream().map(JsonNode::asString))
 				.contains("VALIDATION_FAILED", "ACCESS_DENIED", "INSUFFICIENT_BALANCE", "OVERLAPPING_LEAVE",
 						"EXPORT_NOT_FOUND");
+		// Import problems (e.g. holidays from CSV) say which row is wrong
+		assertThat(problem.get("properties").get("errors").get("items").get("properties").propertyNames())
+				.contains("field", "row", "message");
 		assertThat(tenantApi.get("paths").get("/api/v1/leave-requests").get("post").get("responses").has("409"))
 				.isTrue();
 		JsonNode activityDetails = tenantApi.get("components").get("schemas").get("ActivityResponse").get("properties")

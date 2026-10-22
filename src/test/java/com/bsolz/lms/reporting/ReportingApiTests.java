@@ -145,6 +145,21 @@ class ReportingApiTests {
 	}
 
 	@Test
+	void reportsBoundDaysAndMonthsInTheTenantsTimezone() throws Exception {
+		// Browsers still report India as Asia/Calcutta, a name some PostgreSQL builds don't know: reports
+		// work the days' and months' bounds out in Java instead of asking the database to convert zones
+		api.put(fixtures.adminBearer(tenant), "/api/v1/settings",
+				Map.of("leaveYearStartMonth", 1, "timezone", "Asia/Calcutta", "dateFormat", "yyyy-MM-dd",
+						"weekStartDay", "MONDAY"))
+				.andExpect(status().isOk());
+
+		JsonNode months = report(carlaToken, "monthly-statistics").get("months");
+		assertThat(months.valueStream().mapToInt(month -> month.get("submitted").asInt()).sum()).isEqualTo(5);
+		assertThat(months.valueStream().mapToInt(month -> month.get("rejected").asInt()).sum()).isEqualTo(1);
+		assertThat(report(carlaToken, "decisions").get("total").get("submitted").asInt()).isEqualTo(5);
+	}
+
+	@Test
 	void historyAndBalancesRespectTheReportingLine() throws Exception {
 		api.get(mayaToken, "/api/v1/reports/employee-leave-history?from={f}&to={t}&employeeId={e}", today,
 				monday.plusDays(30), omar.id())

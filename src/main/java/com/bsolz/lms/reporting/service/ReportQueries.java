@@ -12,6 +12,8 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
@@ -50,18 +52,40 @@ class ReportQueries {
 				(rs, row) -> new MonthTypeDays(rs.getString("month"), leaveType(rs), rs.getBigDecimal("days")));
 	}
 
-	/** Submissions, approvals and rejections per {@code yyyy-MM} month (in the zone). */
+	/**
+	 * Submissions, approvals and rejections per {@code yyyy-MM} month (in the zone). The months' bounds are
+	 * worked out here, not with {@code AT TIME ZONE}: the database's time zone names can lag Java's (e.g.
+	 * PostgreSQL without tzdata's backward links rejects {@code Asia/Calcutta}, which browsers still report).
+	 */
 	List<MonthActionCount> actionsByMonth(ReportScope scope, LocalDate from, LocalDate to, ZoneId zone) {
+		MapSqlParameterSource params = params(scope);
+		StringBuilder months = new StringBuilder();
+		int index = 0;
+		for (YearMonth month = YearMonth.from(from); !month.atDay(1).isAfter(to); month = month.plusMonths(1), index++) {
+			LocalDate start = from.isAfter(month.atDay(1)) ? from : month.atDay(1);
+			LocalDate end = to.isBefore(month.atEndOfMonth()) ? to : month.atEndOfMonth();
+			months.append(index == 0 ? "" : ", ").append(
+					"(CAST(:month%1$d AS text), CAST(:start%1$d AS timestamptz), CAST(:end%1$d AS timestamptz))"
+						.formatted(index));
+			params.addValue("month" + index, month.toString())
+					.addValue("start" + index, startOf(start, zone))
+					.addValue("end" + index, startOf(end.plusDays(1), zone));
+		}
 		return jdbc.query(ReportScope.CTE + """
-				SELECT to_char(h.created_at AT TIME ZONE :zone, 'YYYY-MM') AS month, h.action, count(*) AS n
+				, months(month, starts, ends) AS (VALUES %s)
+				SELECT m.month, h.action, count(*) AS n
 				FROM leave_request_history h
 				JOIN leave_request r ON r.id = h.leave_request_id
-				WHERE h.action IN ('SUBMIT', 'APPROVE', 'REJECT')
-				  AND (h.created_at AT TIME ZONE :zone)::date BETWEEN :from AND :to AND r.employee_id %s
+				JOIN months m ON h.created_at >= m.starts AND h.created_at < m.ends
+				WHERE h.action IN ('SUBMIT', 'APPROVE', 'REJECT') AND r.employee_id %s
 				GROUP BY 1, 2
-				""".formatted(IN_SCOPE),
-				params(scope).addValue("from", from).addValue("to", to).addValue("zone", zone.getId()),
+				""".formatted(months, IN_SCOPE), params,
 				(rs, row) -> new MonthActionCount(rs.getString("month"), rs.getString("action"), rs.getInt("n")));
+	}
+
+	/** The instant a day starts in the zone, for comparing with {@code timestamptz} columns. */
+	private static OffsetDateTime startOf(LocalDate day, ZoneId zone) {
+		return day.atStartOfDay(zone).toOffsetDateTime();
 	}
 
 	List<LeaveHistoryRow> history(ReportScope scope, ReportCriteria criteria, int limit, long offset) {
@@ -163,11 +187,11 @@ class ReportQueries {
 				           COALESCE(bool_or(h.action = 'REJECT'), false) AS rejected
 				    FROM leave_request_history h WHERE h.leave_request_id = r.id
 				) o
-				WHERE (r.created_at AT TIME ZONE :zone)::date BETWEEN :from AND :to AND r.employee_id %s
+				WHERE r.created_at >= :starts AND r.created_at < :ends AND r.employee_id %s
 				GROUP BY t.id, t.code, t.name, t.color, t.sort_order
 				ORDER BY t.sort_order, t.name
 				""".formatted(IN_SCOPE),
-				params(scope).addValue("from", from).addValue("to", to).addValue("zone", zone.getId()),
+				params(scope).addValue("starts", startOf(from, zone)).addValue("ends", startOf(to.plusDays(1), zone)),
 				(rs, row) -> new TypeDecisions(leaveType(rs), rs.getInt("submitted"), rs.getInt("approved"),
 						rs.getInt("rejected"), rs.getInt("withdrawn"), rs.getInt("cancelled"), rs.getInt("pending"),
 						rs.getBigDecimal("decision_seconds")));
